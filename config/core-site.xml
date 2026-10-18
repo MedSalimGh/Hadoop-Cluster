@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- Default HDFS filesystem URI -->
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://master:9000</value>
+        <description>URI of the primary NameNode filesystem.</description>
+    </property>
+
+    <!-- Base temporary directory for Hadoop -->
+    <property>
+        <name>hadoop.tmp.dir</name>
+        <value>/home/huser/hadoopdata/tmp</value>
+        <description>Base directory for local filesystem storage.</description>
+    </property>
+
+    <!-- Proxy user authorization for huser (required for HiveServer2 & MapReduce) -->
+    <property>
+        <name>hadoop.proxyuser.huser.hosts</name>
+        <value>*</value>
+        <description>Allows huser to connect from any host to impersonate other users.</description>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.huser.groups</name>
+        <value>*</value>
+        <description>Allows huser to impersonate any user group.</description>
+    </property>
+
+    <!-- Proxy user authorization for hive user -->
+    <property>
+        <name>hadoop.proxyuser.hive.hosts</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hive.groups</name>
+        <value>*</value>
+    </property>
+</configuration>

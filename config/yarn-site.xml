@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- MapReduce Shuffle auxiliary service -->
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+        <description>Enables MapReduce shuffle handler on NodeManagers.</description>
+    </property>
+    <property>
+        <name>yarn.nodemanager.aux-services.mapreduce_shuffle.class</name>
+        <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+    </property>
+
+    <!-- ResourceManager hostname and web interface -->
+    <property>
+        <name>yarn.resourcemanager.hostname</name>
+        <value>master</value>
+        <description>Hostname of the YARN central ResourceManager.</description>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.webapp.address</name>
+        <value>0.0.0.0:8088</value>
+        <description>YARN Web UI available at http://192.168.56.10:8088</description>
+    </property>
+
+    <!-- NodeManager Resource Limits (tailored for lightweight VMs) -->
+    <property>
+        <name>yarn.nodemanager.resource.memory-mb</name>
+        <value>1024</value>
+        <description>Physical memory allocated for YARN containers per worker node.</description>
+    </property>
+    <property>
+        <name>yarn.scheduler.minimum-allocation-mb</name>
+        <value>256</value>
+        <description>Minimum container allocation size.</description>
+    </property>
+    <property>
+        <name>yarn.scheduler.maximum-allocation-mb</name>
+        <value>1024</value>
+        <description>Maximum container allocation size.</description>
+    </property>
+
+    <!-- Virtual and physical memory checks -->
+    <property>
+        <name>yarn.nodemanager.vmem-check-enabled</name>
+        <value>false</value>
+        <description>Disables strict virtual memory enforcement to prevent container kill in VM environments.</description>
+    </property>
+    <property>
+        <name>yarn.nodemanager.pmem-check-enabled</name>
+        <value>false</value>
+        <description>Disables physical memory enforcement.</description>
+    </property>
+</configuration>

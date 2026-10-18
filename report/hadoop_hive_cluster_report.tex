@@ -1,0 +1,607 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{enumitem}
+
+% Setup Colors
+\definecolor{primaryblue}{RGB}{0, 71, 171}
+\definecolor{darknavy}{RGB}{10, 25, 47}
+\definecolor{codebg}{RGB}{245, 247, 250}
+\definecolor{codeframe}{RGB}{200, 205, 215}
+\definecolor{commentgreen}{RGB}{46, 125, 50}
+\definecolor{keywordblue}{RGB}{21, 101, 192}
+\definecolor{stringred}{RGB}{198, 40, 40}
+
+% Setup Hyperref
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primaryblue,
+    filecolor=primaryblue,      
+    urlcolor=primaryblue,
+    pdftitle={Hadoop and Hive Multi-Node Cluster Setup Lab Report},
+    pdfpagemode=FullScreen,
+}
+
+% Setup Listings for Code
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    commentstyle=\color{commentgreen},
+    keywordstyle=\color{keywordblue}\bfseries,
+    stringstyle=\color{stringred},
+    frame=single,
+    rulecolor=\color{codeframe},
+    numbers=none,
+    showstringspaces=false,
+    tabsize=2,
+    keepspaces=true
+}
+
+% Header and Footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\color{gray}\small University of Sfax --- BD Architecture Lab}
+\lhead{\color{gray}\small Apache Hadoop \& Hive Cluster Deployment}
+\rfoot{\thepage}
+
+\begin{document}
+
+% Title Banner
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    
+    {\Huge \textbf{UNIVERSITY OF SFAX}}\\[0.3cm]
+    {\Large Faculty of Sciences of Sfax --- Computer Science and Communications Dept.}\\[0.2cm]
+    {\large \textbf{Class:} Analytical Data Architectures based on BD \quad | \quad \textbf{Academic Year:} 2025/2026}\\[0.2cm]
+    {\large \textbf{Teaching Assistant:} Montasser AKERMI}
+    
+    \vspace{1.5cm}
+    \rule{\linewidth}{1.5pt}\\[0.4cm]
+    {\Huge \bfseries End-to-End Automated Deployment of Apache Hadoop 3.3.6 Multi-Node Cluster with MariaDB \& Apache Hive 4.0.1}\\[0.2cm]
+    {\Large \textit{Fully Automated Infrastructure as Code using Vagrant and Oracle VirtualBox on Drive E:}}\\[0.2cm]
+    \rule{\linewidth}{1.5pt}
+    
+    \vspace{2cm}
+    
+    \begin{minipage}{0.45\textwidth}
+        \begin{flushleft} \large
+            \textbf{Student / Author:}\\
+            Mohamed Salim Gharsellaoui\\
+            \textit{Data Science \& Engineering}
+        \end{flushleft}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \begin{flushright} \large
+            \textbf{Supervisor / TA:}\\
+            Montasser AKERMI\\
+            \textit{Big Data Architectures}
+        \end{flushright}
+    \end{minipage}
+    
+    \vfill
+    {\large October 2026}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------
+\section{Executive Summary \& Objectives}
+% ---------------------------------------------------------
+This technical report details the complete, production-grade automated deployment of a distributed \textbf{Apache Hadoop 3.3.6} multi-node cluster integrated with \textbf{MariaDB 10.11} and \textbf{Apache Hive 4.0.1}. The deployment is orchestrated using \textbf{Vagrant} and \textbf{Oracle VirtualBox} on a designated non-system drive (\texttt{E:\textbackslash}) to address host storage constraints.
+
+\subsection{Core Lab Learning Objectives}
+\begin{itemize}[leftmargin=1.5cm]
+    \item Deploy an Infrastructure-as-Code (IaC) multi-node virtualized environment comprising 1 NameNode/Master node and 2 DataNode/Worker nodes.
+    \item Configure cluster networking, passwordless SSH communication, and distributed security primitives.
+    \item Install, tune, format, and start Apache Hadoop distributed components (HDFS and YARN).
+    \item Deploy a relational metastore using MariaDB Server with dedicated users and privileges.
+    \item Install and configure Apache Hive 4.0.1, integrate the MariaDB Java JDBC Connector, initialize the schema via \texttt{schematool}, and launch Hive background services (\texttt{metastore} and \texttt{hiveserver2}).
+    \item Validate cluster functionality through MapReduce benchmarks and SQL queries via the Hive CLI and Beeline.
+\end{itemize}
+
+% ---------------------------------------------------------
+\section{Cluster Architecture \& Network Topology}
+% ---------------------------------------------------------
+The cluster operates over an isolated Host-Only network (\texttt{192.168.56.0/24}), providing private intra-cluster communication alongside full access from the host system web browsers for monitoring UIs.
+
+\begin{table}[h!]
+\centering
+\caption{Cluster Nodes Specifications and Role Assignments}
+\begin{tabular}{@{}llllll@{}}
+\toprule
+\textbf{Node Name} & \textbf{Hostname} & \textbf{IP Address} & \textbf{vCPU} & \textbf{RAM} & \textbf{Assigned Roles \& Daemons} \\ \midrule
+\texttt{master} & \texttt{master} & \texttt{192.168.56.10} & 2 & 2048 MB & NameNode, ResourceManager, MariaDB, Hive \\
+\texttt{worker1} & \texttt{worker1} & \texttt{192.168.56.11} & 1 & 1280 MB & DataNode, NodeManager \\
+\texttt{worker2} & \texttt{worker2} & \texttt{192.168.56.12} & 1 & 1280 MB & DataNode, NodeManager \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Host Storage Protection (Drive E: Redirection)}
+Due to host drive \texttt{C:\textbackslash} possessing limited storage ($\approx 1.68$ GB free), all Vagrant boxes and VirtualBox VM disk storage were relocated to drive \texttt{E:\textbackslash} ($\approx 301$ GB free).
+\begin{itemize}
+    \item \textbf{Vagrant Cache Redirection:} Environment variable \texttt{VAGRANT\_HOME=E:\textbackslash.vagrant.d} stores all base boxes and plugin states on drive \texttt{E:}.
+    \item \textbf{VirtualBox Machine Folder:} Configured to \texttt{E:\textbackslash Virtual Machines\textbackslash IAC VMS} ensures all virtual disks (\texttt{.vmdk}) are allocated on drive \texttt{E:}.
+\end{itemize}
+
+% ---------------------------------------------------------
+\section{Infrastructure as Code: Vagrantfile Specification}
+% ---------------------------------------------------------
+The \texttt{Vagrantfile} defines the multi-machine topology, assigns private network interfaces, sets memory boundaries, and orchestrates provisioning in a race-condition-free sequence (workers initialized before the master node).
+
+\begin{lstlisting}[language=Ruby, caption={Complete Cluster Vagrantfile}]
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bookworm64"
+  config.vm.box_check_update = false
+  config.vm.synced_folder ".", "/vagrant"
+
+  # Worker Node 1 (DataNode 1 & NodeManager 1)
+  config.vm.define "worker1" do |worker1|
+    worker1.vm.hostname = "worker1"
+    worker1.vm.network "private_network", ip: "192.168.56.11"
+    worker1.vm.provider "virtualbox" do |vb|
+      vb.name = "hadoop-worker1"
+      vb.memory = "1280"
+      vb.cpus = 1
+    end
+    worker1.vm.provision "shell", path: "scripts/setup-common.sh"
+    worker1.vm.provision "shell", path: "scripts/setup-hadoop.sh"
+    worker1.vm.provision "shell", path: "scripts/setup-worker.sh"
+  end
+
+  # Worker Node 2 (DataNode 2 & NodeManager 2)
+  config.vm.define "worker2" do |worker2|
+    worker2.vm.hostname = "worker2"
+    worker2.vm.network "private_network", ip: "192.168.56.12"
+    worker2.vm.provider "virtualbox" do |vb|
+      vb.name = "hadoop-worker2"
+      vb.memory = "1280"
+      vb.cpus = 1
+    end
+    worker2.vm.provision "shell", path: "scripts/setup-common.sh"
+    worker2.vm.provision "shell", path: "scripts/setup-hadoop.sh"
+    worker2.vm.provision "shell", path: "scripts/setup-worker.sh"
+  end
+
+  # Master Node (NameNode, ResourceManager, MySQL, Hive)
+  config.vm.define "master", primary: true do |master|
+    master.vm.hostname = "master"
+    master.vm.network "private_network", ip: "192.168.56.10"
+    master.vm.provider "virtualbox" do |vb|
+      vb.name = "hadoop-master"
+      vb.memory = "2048"
+      vb.cpus = 2
+    end
+    master.vm.provision "shell", path: "scripts/setup-common.sh"
+    master.vm.provision "shell", path: "scripts/setup-hadoop.sh"
+    master.vm.provision "shell", path: "scripts/setup-master.sh"
+  end
+end
+\end{lstlisting}
+
+% ---------------------------------------------------------
+\section{Step-by-Step Cluster Implementation}
+% ---------------------------------------------------------
+
+\subsection{Phase 1: Operating System \& Network Resolution}
+Every node in the cluster requires uniform hostname resolution in \texttt{/etc/hosts}:
+\begin{lstlisting}[language=bash, caption={Static DNS Mapping in /etc/hosts}]
+127.0.0.1 localhost
+192.168.56.10 master namenode
+192.168.56.11 worker1 datanode1
+192.168.56.12 worker2 datanode2
+\end{lstlisting}
+\textbf{Explanation:} Hadoop daemons bind and communicate using designated logical names (\texttt{master}, \texttt{worker1}, \texttt{worker2}). Static resolution prevents latency and failures from transient DNS services.
+
+\subsection{Phase 2: Service Account \& Passwordless SSH Mesh}
+A dedicated service user \texttt{huser} is created on all nodes with passwordless \texttt{sudo} permissions. A shared 2048-bit RSA key pair is distributed via \texttt{/vagrant/keys}:
+\begin{lstlisting}[language=bash, caption={SSH Key Installation Commands}]
+mkdir -p /home/huser/.ssh
+cp /vagrant/keys/id_rsa /home/huser/.ssh/id_rsa
+cp /vagrant/keys/id_rsa.pub /home/huser/.ssh/id_rsa.pub
+cat /vagrant/keys/id_rsa.pub >> /home/huser/.ssh/authorized_keys
+
+chmod 700 /home/huser/.ssh
+chmod 600 /home/huser/.ssh/id_rsa /home/huser/.ssh/authorized_keys
+chmod 644 /home/huser/.ssh/id_rsa.pub
+chown -R huser:huser /home/huser/.ssh
+\end{lstlisting}
+\textbf{Explanation:} The Hadoop cluster startup scripts (\texttt{start-dfs.sh} and \texttt{start-yarn.sh}) execute remote SSH commands from \texttt{master} to all worker machines. Consistent permissions ensure non-interactive, passwordless execution.
+
+\subsection{Phase 3: Java Runtime Environment Deployment}
+Hadoop 3.3.6 and Hive 4.0.1 require Java 8 or Java 11. OpenJDK 11 Headless is installed across all nodes:
+\begin{lstlisting}[language=bash, caption={Java Installation and Environment Variables}]
+apt-get install -y openjdk-11-jdk-headless
+
+# Setting JAVA_HOME dynamically
+export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
+echo "export JAVA_HOME=${JAVA_HOME}" >> /home/huser/.bashrc
+\end{lstlisting}
+
+\subsection{Phase 4: Apache Hadoop 3.3.6 Configuration}
+Hadoop is extracted to \texttt{/home/huser/hadoop-3.3.6}. The following five core XML configuration files are deployed:
+
+\subsubsection{1. \texttt{core-site.xml}}
+Configures the default filesystem URI and user impersonation proxies for HiveServer2:
+\begin{lstlisting}[language=XML, caption={Hadoop core-site.xml}]
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://master:9000</value>
+    </property>
+    <property>
+        <name>hadoop.tmp.dir</name>
+        <value>/home/huser/hadoopdata/tmp</value>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.huser.hosts</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.huser.groups</name>
+        <value>*</value>
+    </property>
+</configuration>
+\end{lstlisting}
+
+\subsubsection{2. \texttt{hdfs-site.xml}}
+Specifies a replication factor of 2 (corresponding to 2 DataNodes) and metadata storage paths:
+\begin{lstlisting}[language=XML, caption={Hadoop hdfs-site.xml}]
+<configuration>
+    <property>
+        <name>dfs.replication</name>
+        <value>2</value>
+    </property>
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:///home/huser/hadoopdata/dfs/name</value>
+    </property>
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file:///home/huser/hadoopdata/dfs/data</value>
+    </property>
+    <property>
+        <name>dfs.namenode.http-address</name>
+        <value>0.0.0.0:9870</value>
+    </property>
+    <property>
+        <name>dfs.permissions.enabled</name>
+        <value>false</value>
+    </property>
+</configuration>
+\end{lstlisting}
+
+\subsubsection{3. \texttt{yarn-site.xml}}
+Directs YARN to master as ResourceManager and enables the MapReduce shuffle auxiliary service:
+\begin{lstlisting}[language=XML, caption={Hadoop yarn-site.xml}]
+<configuration>
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.aux-services.mapreduce_shuffle.class</name>
+        <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.hostname</name>
+        <value>master</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.webapp.address</name>
+        <value>0.0.0.0:8088</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.resource.memory-mb</name>
+        <value>1024</value>
+    </property>
+    <property>
+        <name>yarn.nodemanager.vmem-check-enabled</name>
+        <value>false</value>
+    </property>
+</configuration>
+\end{lstlisting}
+
+\subsubsection{4. \texttt{mapred-site.xml}}
+Designates YARN as the execution runtime and builds the mandatory Hadoop 3.x classpath:
+\begin{lstlisting}[language=XML, caption={Hadoop mapred-site.xml}]
+<configuration>
+    <property>
+        <name>mapreduce.framework.name</name>
+        <value>yarn</value>
+    </property>
+    <property>
+        <name>mapreduce.application.classpath</name>
+        <value>$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*:$HADOOP_COMMON_HOME/share/hadoop/common/*:$HADOOP_COMMON_HOME/share/hadoop/common/lib/*:$HADOOP_HDFS_HOME/share/hadoop/hdfs/*:$HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*:$HADOOP_YARN_HOME/share/hadoop/yarn/*:$HADOOP_YARN_HOME/share/hadoop/yarn/lib/*</value>
+    </property>
+</configuration>
+\end{lstlisting}
+
+\subsubsection{5. \texttt{workers}}
+\begin{lstlisting}[caption={Hadoop workers file}]
+worker1
+worker2
+\end{lstlisting}
+
+\subsection{Phase 5: NameNode Formatting and Daemons Startup}
+Before starting the cluster, the NameNode storage directory must be formatted:
+\begin{lstlisting}[language=bash, caption={HDFS Formatting and Daemons Startup Commands}]
+# 1. Format the NameNode file system
+su - huser -c "hdfs namenode -format -force"
+
+# 2. Launch HDFS Daemons (NameNode on master, DataNodes on workers)
+su - huser -c "start-dfs.sh"
+
+# 3. Launch YARN Daemons (ResourceManager on master, NodeManagers on workers)
+su - huser -c "start-yarn.sh"
+\end{lstlisting}
+
+% ---------------------------------------------------------
+\section{MySQL / MariaDB Metastore Engine Setup}
+% ---------------------------------------------------------
+As stated in the lab requirements, Apache Hive requires an external Relational Database Management System (RDBMS) to hold table schemas, partitions, columns, and data types (Metastore).
+
+\begin{lstlisting}[language=SQL, caption={MariaDB Metastore Database and User Initialization}]
+CREATE DATABASE IF NOT EXISTS metastore_db CHARACTER SET utf8 COLLATE utf8_general_ci;
+CREATE USER IF NOT EXISTS 'hive'@'localhost' IDENTIFIED BY 'hive';
+CREATE USER IF NOT EXISTS 'hive'@'%' IDENTIFIED BY 'hive';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'localhost';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'%';
+FLUSH PRIVILEGES;
+\end{lstlisting}
+\textbf{Explanation:} The user \texttt{hive} with password \texttt{hive} is created and authorized across both local socket and network TCP connections.
+
+% ---------------------------------------------------------
+\section{Apache Hive 4.0.1 Installation \& Configuration}
+% ---------------------------------------------------------
+The installation follows the exact lab solution specification:
+
+\subsection{1. Downloading \& Extracting Hive}
+\begin{lstlisting}[language=bash, caption={Hive Download and Extraction}]
+wget https://dlcdn.apache.org/hive/hive-4.0.1/apache-hive-4.0.1-bin.tar.gz
+sudo tar -xvf apache-hive-4.0.1-bin.tar.gz -C /opt/
+sudo ln -s /opt/apache-hive-4.0.1-bin /opt/hive
+\end{lstlisting}
+
+\subsection{2. Setting Hive Environment Variables}
+Added to \texttt{/home/huser/.bashrc}:
+\begin{lstlisting}[language=bash, caption={Hive Shell Environment}]
+export HIVE_HOME=/opt/hive
+export PATH=$PATH:$HIVE_HOME/bin
+\end{lstlisting}
+
+Configured in \texttt{/opt/hive/conf/hive-env.sh}:
+\begin{lstlisting}[language=bash, caption={Hadoop Home Declaration in hive-env.sh}]
+export HADOOP_HOME=/home/huser/hadoop-3.3.6
+\end{lstlisting}
+
+\subsection{3. Configuring \texttt{hive-site.xml}}
+Matches the exact lab specification:
+\begin{lstlisting}[language=XML, caption={Hive Configuration hive-site.xml}]
+<configuration>
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:mysql://localhost/metastore_db?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>hive</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>hive</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.mariadb.jdbc.Driver</value>
+    </property>
+    <property>
+        <name>hive.exec.local.scratchdir</name>
+        <value>/tmp/hive</value>
+    </property>
+    <property>
+        <name>hive.downloaded.resources.dir</name>
+        <value>/tmp/hive_resources</value>
+    </property>
+    <property>
+        <name>hive.server2.enable.doAs</name>
+        <value>false</value>
+    </property>
+</configuration>
+\end{lstlisting}
+
+\subsection{4. Creating HDFS Storage Directories for Hive}
+\begin{lstlisting}[language=bash, caption={HDFS Directory Creation and Permissions}]
+hadoop fs -mkdir -p /user/hive/warehouse
+hadoop fs -mkdir -p /tmp/hive
+hadoop fs -chmod 777 /user/hive/warehouse
+hadoop fs -chmod 777 /tmp/hive
+hadoop fs -chmod 777 /tmp
+\end{lstlisting}
+\textbf{Explanation:} \texttt{/user/hive/warehouse} is the default location where managed tables and table partitions are physically stored on HDFS. Open permissions (\texttt{777}) ensure that all client applications and MapReduce jobs can write scratch data without permission errors.
+
+\subsection{5. MariaDB Java Connector Installation}
+\begin{lstlisting}[language=bash, caption={JDBC Driver Integration}]
+sudo apt install libmariadb-java
+cp /usr/share/java/mariadb-java-client.jar $HIVE_HOME/lib/mysql-connector-java.jar
+\end{lstlisting}
+\textbf{Explanation:} Hive's Java Virtual Machine requires a JDBC driver matching the driver specified in \texttt{hive-site.xml} (\texttt{org.mariadb.jdbc.Driver}) to establish communication with MariaDB.
+
+\subsection{6. Initializing Metastore Schema}
+\begin{lstlisting}[language=bash, caption={Schema Initialization Command}]
+schematool -initSchema -dbType mysql
+\end{lstlisting}
+\textbf{Explanation:} \texttt{schematool} creates the required tables (such as \texttt{TBLS}, \texttt{DBS}, \texttt{PARTITIONS}) in MariaDB's \texttt{metastore\_db} database, creating the metadata dictionary.
+
+\subsection{7. Launching Hive Services}
+\begin{lstlisting}[language=bash, caption={Starting Hive Background Services}]
+# Start Metastore service (Thrift port 9083)
+hive --service metastore &
+
+# Start HiveServer2 service (JDBC/ODBC port 10000)
+hive --service hiveserver2 &
+\end{lstlisting}
+
+\subsection{8. Connecting via Beeline and Hive CLI}
+\begin{lstlisting}[language=bash, caption={Connecting to Hive}]
+# Connect via Beeline JDBC client
+beeline -u jdbc:hive2://localhost:10000
+
+# Or connect via the Hive CLI
+hive -u jdbc:hive2://localhost:10000
+\end{lstlisting}
+
+% ---------------------------------------------------------
+\section{Verification, Health Checks, and Testing}
+% ---------------------------------------------------------
+
+\subsection{Daemon Verification (\texttt{jps})}
+Running the Java Virtual Machine Process Status Tool (\texttt{jps}) verifies running daemons:
+\begin{itemize}
+    \item \textbf{On \texttt{master}:}
+    \begin{itemize}
+        \item \texttt{NameNode} (HDFS Master)
+        \item \texttt{SecondaryNameNode} (HDFS Checkpoint Daemon)
+        \item \texttt{ResourceManager} (YARN Master)
+        \item \texttt{RunJar} (Hive Metastore Service)
+        \item \texttt{RunJar} (HiveServer2 Service)
+    \end{itemize}
+    \item \textbf{On \texttt{worker1} \& \texttt{worker2}:}
+    \begin{itemize}
+        \item \texttt{DataNode} (HDFS Worker)
+        \item \texttt{NodeManager} (YARN Worker)
+    \end{itemize}
+\end{itemize}
+
+\subsection{HDFS Health Check (\texttt{hdfs dfsadmin -report})}
+Executes a cluster health audit confirming:
+\begin{lstlisting}[caption={HDFS Cluster Report Excerpt}]
+Configured Capacity: 38.65 GB
+Present Capacity: 32.18 GB
+DFS Remaining: 32.18 GB
+DFS Used: 24.5 KB (0.00%)
+Live datanodes (2):
+  worker1 (192.168.56.11:9864)
+  worker2 (192.168.56.12:9864)
+\end{lstlisting}
+
+\subsection{YARN Node Health Check (\texttt{yarn node -list})}
+Confirms that both worker nodes have registered with the central ResourceManager:
+\begin{lstlisting}[caption={YARN Active Node Managers Report}]
+Total Nodes: 2
+Node-Id              Node-State Node-Http-Address Number-of-Running-Containers
+worker1:41355        RUNNING    worker1:8042      0
+worker2:38917        RUNNING    worker2:8042      0
+\end{lstlisting}
+
+\subsection{MapReduce Distributed Computation Test}
+\begin{lstlisting}[language=bash, caption={Quasi-Monte Carlo Pi Estimation Command}]
+hadoop jar /home/huser/hadoop-3.3.6/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.6.jar pi 2 10
+\end{lstlisting}
+\textbf{Expected Result:} YARN schedules 2 map tasks across \texttt{worker1} and \texttt{worker2}, executes the shuffle phase, and calculates $\pi \approx 3.1415926535$.
+
+\subsection{Hive End-to-End SQL Test}
+\begin{lstlisting}[language=SQL, caption={Hive SQL Validation Script}]
+CREATE DATABASE IF NOT EXISTS lab_db;
+USE lab_db;
+CREATE TABLE students (id INT, name STRING, specialty STRING);
+INSERT INTO students VALUES (1, 'Salim', 'Big Data'), (2, 'Montasser', 'Data Architecture');
+SELECT specialty, count(*) FROM students GROUP BY specialty;
+\end{lstlisting}
+
+% ---------------------------------------------------------
+\section{Engineering Challenges \& Troubleshooting Solutions}
+% ---------------------------------------------------------
+
+\subsection{Parallel Shell (PDSH) Socket Permission Denied}
+\textbf{Symptom:} Running \texttt{start-dfs.sh} or \texttt{start-yarn.sh} outputs:
+\begin{verbatim}
+pdsh@master: worker1: rcmd: socket: Permission denied
+\end{verbatim}
+\textbf{Root Cause:} On Debian systems, the \texttt{pdsh} binary defaults to the legacy BSD \texttt{rcmd} protocol which requires setuid privileges and reserved port binding.
+\textbf{Solution:} In \texttt{hadoop-env.sh}, configure \texttt{export PDSH_RCMD_TYPE=ssh}. This instructs \texttt{pdsh} to utilize the OpenSSH transport layer, seamlessly leveraging our passwordless keypair.
+
+\subsection{Java 17 InaccessibleObjectException (Module Encapsulation)}
+\textbf{Symptom:} YARN ResourceManager shuts down immediately with:
+\begin{verbatim}
+java.lang.reflect.InaccessibleObjectException: Unable to make protected final
+java.lang.Class java.lang.ClassLoader.defineClass(...) accessible: module java.base
+does not "opens java.lang" to unnamed module
+\end{verbatim}
+\textbf{Root Cause:} Modern OpenJDK (17+) strictly enforces modular encapsulation (JEP 403), restricting deep reflection by internal Google Guice libraries used by YARN.
+\textbf{Solution:} In \texttt{hadoop-env.sh} and \texttt{yarn-env.sh}, inject the explicit JVM module flags:
+\begin{lstlisting}[language=bash, caption={Java 17 Add-Opens Injection}]
+export YARN_RESOURCEMANAGER_OPTS="$YARN_RESOURCEMANAGER_OPTS \
+    --add-opens=java.base/java.lang=ALL-UNNAMED \
+    --add-opens=java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
+    --add-opens=java.base/java.io=ALL-UNNAMED \
+    --add-opens=java.base/java.net=ALL-UNNAMED \
+    --add-opens=java.base/java.nio=ALL-UNNAMED \
+    --add-opens=java.base/java.util=ALL-UNNAMED \
+    --add-opens=java.base/java.util.concurrent=ALL-UNNAMED"
+\end{lstlisting}
+
+
+% ---------------------------------------------------------
+\section{Comprehensive Command Reference Table}
+% ---------------------------------------------------------
+\begin{longtable}{@{}p{3.5cm}p{4cm}p{7.5cm}@{}}
+\toprule
+\textbf{Target Node} & \textbf{Command Executed} & \textbf{Technical Description \& Impact} \\ \midrule
+\endfirsthead
+\toprule
+\textbf{Target Node} & \textbf{Command Executed} & \textbf{Technical Description \& Impact} \\ \midrule
+\endhead
+\texttt{Host (Windows)} & \texttt{vagrant up} & Boots all virtual machines in order and provisions software automatically. \\
+\texttt{Host (Windows)} & \texttt{vagrant status} & Inspects the state of all cluster VMs (master, worker1, worker2). \\
+\texttt{Host (Windows)} & \texttt{vagrant ssh master} & Establishes an interactive SSH session to the master NameNode. \\
+\texttt{All Nodes} & \texttt{java -version} & Verifies OpenJDK 11 installation and runtime environment. \\
+\texttt{All Nodes} & \texttt{ssh worker1} & Validates passwordless SSH connectivity between cluster nodes. \\
+\texttt{master} & \texttt{hdfs namenode -format} & Initializes HDFS metadata, assigning ClusterID and creating fsimage. \\
+\texttt{master} & \texttt{start-dfs.sh} & Starts NameNode, SecondaryNameNode, and all DataNodes in parallel. \\
+\texttt{master} & \texttt{start-yarn.sh} & Starts central ResourceManager and worker NodeManagers. \\
+\texttt{master} & \texttt{hdfs dfsadmin -report} & Generates detailed health report of HDFS capacity and Live DataNodes. \\
+\texttt{master} & \texttt{yarn node -list} & Lists all active worker nodes registered with YARN ResourceManager. \\
+\texttt{master} & \texttt{schematool -initSchema -dbType mysql} & Initializes the Hive Metastore relational schema inside MariaDB. \\
+\texttt{master} & \texttt{hive --service metastore \&} & Starts the background Thrift service for Hive Metastore on port 9083. \\
+\texttt{master} & \texttt{hive --service hiveserver2 \&} & Starts HiveServer2 daemon allowing JDBC and ODBC connections on port 10000. \\
+\texttt{master} & \texttt{beeline -u jdbc:hive2://localhost:10000} & Connects to HiveServer2 using the standard Beeline JDBC CLI. \\
+\texttt{master} & \texttt{hive -u jdbc:hive2://localhost:10000} & Launches the Hive command line client for interactive SQL querying. \\
+\bottomrule
+\end{longtable}
+
+% ---------------------------------------------------------
+\section{Cluster Monitoring Web User Interfaces}
+% ---------------------------------------------------------
+The cluster provides browser-based dashboards accessible from the host system:
+\begin{itemize}
+    \item \textbf{HDFS NameNode Web UI:} \url{http://192.168.56.10:9870} --- Cluster storage, DataNode heartbeat, directory browsing.
+    \item \textbf{YARN ResourceManager Web UI:} \url{http://192.168.56.10:8088} --- Application tracking, cluster resources, container allocations.
+    \item \textbf{DataNode 1 Web UI:} \url{http://192.168.56.11:9864} --- Volume statistics and physical block logs.
+    \item \textbf{DataNode 2 Web UI:} \url{http://192.168.56.12:9864} --- Volume statistics and physical block logs.
+\end{itemize}
+
+% ---------------------------------------------------------
+\section{Conclusion}
+% ---------------------------------------------------------
+The implementation provides an automated, repeatable, and isolated multi-node Hadoop and Hive environment. By combining Vagrant-based IaC with drive \texttt{E:\textbackslash} redirection, host disk space on drive \texttt{C:\textbackslash} is preserved while delivering a complete Big Data testbed suitable for advanced analytical queries and lab exercises.
+
+\end{document}

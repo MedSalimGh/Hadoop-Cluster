@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- Block replication factor matches our 2 DataNodes -->
+    <property>
+        <name>dfs.replication</name>
+        <value>2</value>
+        <description>Block replication factor set to 2 for the two DataNodes cluster.</description>
+    </property>
+
+    <!-- NameNode metadata directory -->
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:///home/huser/hadoopdata/dfs/name</value>
+        <description>Local filesystem path where NameNode stores its fsimage and edit logs.</description>
+    </property>
+
+    <!-- DataNode block storage directory -->
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file:///home/huser/hadoopdata/dfs/data</value>
+        <description>Local filesystem path where DataNodes store physical HDFS blocks.</description>
+    </property>
+
+    <!-- NameNode Web UI Address -->
+    <property>
+        <name>dfs.namenode.http-address</name>
+        <value>0.0.0.0:9870</value>
+        <description>NameNode Web UI listening address accessible via browser at http://192.168.56.10:9870</description>
+    </property>
+
+    <!-- DataNode Web UI Address -->
+    <property>
+        <name>dfs.datanode.http.address</name>
+        <value>0.0.0.0:9864</value>
+        <description>DataNode Web UI listening address.</description>
+    </property>
+
+    <!-- Permissions checking -->
+    <property>
+        <name>dfs.permissions.enabled</name>
+        <value>false</value>
+        <description>Disable HDFS strict permission checking for seamless student lab operations.</description>
+    </property>
+</configuration>

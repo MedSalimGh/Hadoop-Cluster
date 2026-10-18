@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- Metastore JDBC connection URL -->
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:mysql://localhost/metastore_db?createDatabaseIfNotExist=true&amp;allowPublicKeyRetrieval=true</value>
+    </property>
+
+    <!-- Metastore database username -->
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>hive</value>
+    </property>
+
+    <!-- Metastore database password -->
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>hive</value>
+    </property>
+
+    <!-- MariaDB / MySQL JDBC Driver class name -->
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>org.mariadb.jdbc.Driver</value>
+    </property>
+
+    <!-- Local scratch directory for temporary Hive artifacts -->
+    <property>
+        <name>hive.exec.local.scratchdir</name>
+        <value>/tmp/hive</value>
+    </property>
+
+    <!-- Directory for downloaded resources -->
+    <property>
+        <name>hive.downloaded.resources.dir</name>
+        <value>/tmp/hive_resources</value>
+    </property>
+
+    <!-- Impersonation setting: set to false so queries execute as hive service -->
+    <property>
+        <name>hive.server2.enable.doAs</name>
+        <value>false</value>
+    </property>
+</configuration>

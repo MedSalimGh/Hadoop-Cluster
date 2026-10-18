@@ -1,0 +1,22 @@
+# Vagrant environment and state
+.vagrant/
+*.log
+
+# Large binary archives (>100MB rejected by GitHub)
+resources/*.tar.gz
+resources/*.tmp
+resources/deb-cache/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# LaTeX build artifacts
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
+report/*.fls
+report/*.fdb_latexmk

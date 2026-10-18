@@ -556,8 +556,27 @@ export YARN_RESOURCEMANAGER_OPTS="$YARN_RESOURCEMANAGER_OPTS \
     --add-opens=java.base/java.net=ALL-UNNAMED \
     --add-opens=java.base/java.nio=ALL-UNNAMED \
     --add-opens=java.base/java.util=ALL-UNNAMED \
-    --add-opens=java.base/java.util.concurrent=ALL-UNNAMED"
+    --add-opens=java.base/java.util.concurrent=ALL-UNNAMED \
+    --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED"
 \end{lstlisting}
+
+\subsection{Hive Kryo Serialization Error during Map.xml Caching}
+\textbf{Symptom:} Executing SQL queries (e.g., \texttt{INSERT INTO course}) fails with:
+\begin{verbatim}
+ERROR : Job Submission failed with exception 'java.lang.RuntimeException(Error caching map.xml)'
+Caused by: java.lang.reflect.InaccessibleObjectException: Unable to make field private volatile 
+int java.util.concurrent.atomic.AtomicBoolean.value accessible: module java.base does not 
+"opens java.util.concurrent.atomic" to unnamed module
+\end{verbatim}
+\textbf{Root Cause:} When compiling MapReduce plans, Hive utilizes the Kryo serializer to write \texttt{map.xml}. Kryo relies on direct field access to serialize instances of \texttt{AtomicBoolean}. Under Java 17, strong encapsulation prevents this reflective access unless explicitly permitted.
+\textbf{Solution:} In \texttt{hive-env.sh}, inject the additional reflection module open rule into \texttt{HADOOP\_OPTS}:
+\begin{lstlisting}[language=bash, caption={Hive Kryo Serialization Java 17 Fix}]
+export HADOOP_OPTS="$HADOOP_OPTS \
+    --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED \
+    --add-opens=java.base/sun.net.www.protocol.jar=ALL-UNNAMED \
+    --add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
+\end{lstlisting}
+
 
 
 % ---------------------------------------------------------

@@ -36,10 +36,23 @@ echo "huser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/huser
 chmod 0440 /etc/sudoers.d/huser
 
 echo "=== [4/5] Configuring Passwordless Cluster SSH Keys ==="
-mkdir -p /home/huser/.ssh
-cp /vagrant/keys/id_rsa /home/huser/.ssh/id_rsa
-cp /vagrant/keys/id_rsa.pub /home/huser/.ssh/id_rsa.pub
-cat /vagrant/keys/id_rsa.pub >> /home/huser/.ssh/authorized_keys
+mkdir -p /home/huser/.ssh /vagrant/keys
+
+# Generate cluster key dynamically during provisioning if not present
+if [ ! -f /vagrant/keys/id_rsa ]; then
+    if [ ! -f /home/huser/.ssh/id_rsa ]; then
+        ssh-keygen -t ed25519 -N '' \
+          -f /home/huser/.ssh/id_rsa \
+          -C "hadoop-vagrant"
+    fi
+    cp /home/huser/.ssh/id_rsa /vagrant/keys/id_rsa
+    cp /home/huser/.ssh/id_rsa.pub /vagrant/keys/id_rsa.pub
+else
+    cp /vagrant/keys/id_rsa /home/huser/.ssh/id_rsa
+    cp /vagrant/keys/id_rsa.pub /home/huser/.ssh/id_rsa.pub
+fi
+
+cat /home/huser/.ssh/id_rsa.pub >> /home/huser/.ssh/authorized_keys
 
 cat << 'EOF' > /home/huser/.ssh/config
 Host *

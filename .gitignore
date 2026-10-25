@@ -32,6 +32,8 @@ HA hive screenshots/
 exercise1_la_crime/
 exercise2_divvy_bikes/
 report/
+report_hive_ha/
+keys/
 
 # OS specific files
 .DS_Store

@@ -25,6 +25,14 @@ preview/
 # Personal named files
 *Gharsellaoui*
 
+# Non-cluster documentation and skills (kept locally)
+docs/
+hadoop_hive_agent_skills/
+HA hive screenshots/
+exercise1_la_crime/
+exercise2_divvy_bikes/
+report/
+
 # OS specific files
 .DS_Store
 Thumbs.db

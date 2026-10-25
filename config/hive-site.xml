@@ -1,45 +1,103 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
 <configuration>
-    <!-- Metastore JDBC connection URL -->
+    <!-- ==================================================================== -->
+    <!-- Shared Relational Metastore Database Configuration (MariaDB)         -->
+    <!-- ==================================================================== -->
     <property>
         <name>javax.jdo.option.ConnectionURL</name>
-        <value>jdbc:mysql://localhost/metastore_db?createDatabaseIfNotExist=true&amp;allowPublicKeyRetrieval=true</value>
+        <value>jdbc:mysql://master/metastore_db?createDatabaseIfNotExist=true&amp;allowPublicKeyRetrieval=true</value>
+        <description>JDBC connect string for shared metastore backend on master node</description>
     </property>
 
-    <!-- Metastore database username -->
     <property>
         <name>javax.jdo.option.ConnectionUserName</name>
         <value>hive</value>
+        <description>Database user for Hive Metastore</description>
     </property>
 
-    <!-- Metastore database password -->
     <property>
         <name>javax.jdo.option.ConnectionPassword</name>
         <value>hive</value>
+        <description>Database password for Hive Metastore</description>
     </property>
 
-    <!-- MariaDB / MySQL JDBC Driver class name -->
     <property>
         <name>javax.jdo.option.ConnectionDriverName</name>
         <value>org.mariadb.jdbc.Driver</value>
+        <description>MariaDB / MySQL JDBC Driver class</description>
     </property>
 
-    <!-- Local scratch directory for temporary Hive artifacts -->
+    <!-- ==================================================================== -->
+    <!-- 1. Hive Metastore Service (HMS) High Availability Configuration     -->
+    <!-- ==================================================================== -->
+    <property>
+        <name>hive.metastore.uris</name>
+        <value>thrift://master:9083,thrift://worker1:9083</value>
+        <description>Comma-separated list of active-active Hive Metastore URIs for client automatic failover</description>
+    </property>
+
+    <property>
+        <name>hive.metastore.failure.retries</name>
+        <value>5</value>
+        <description>Number of retries upon metastore Thrift connection failure</description>
+    </property>
+
+    <property>
+        <name>hive.metastore.client.connect.retry.delay</name>
+        <value>2s</value>
+        <description>Delay between metastore connection retries</description>
+    </property>
+
+    <!-- ==================================================================== -->
+    <!-- 2. HiveServer2 (HS2) High Availability via ZooKeeper Service Discovery-->
+    <!-- ==================================================================== -->
+    <property>
+        <name>hive.server2.support.dynamic.service.discovery</name>
+        <value>true</value>
+        <description>Enables HiveServer2 dynamic service discovery via ZooKeeper</description>
+    </property>
+
+    <property>
+        <name>hive.server2.zookeeper.namespace</name>
+        <value>hiveserver2</value>
+        <description>ZooKeeper root znode namespace under which HS2 instances register</description>
+    </property>
+
+    <property>
+        <name>hive.zookeeper.quorum</name>
+        <value>master:2181</value>
+        <description>ZooKeeper ensemble quorum host:port</description>
+    </property>
+
+    <property>
+        <name>hive.zookeeper.client.port</name>
+        <value>2181</value>
+        <description>ZooKeeper client port</description>
+    </property>
+
+    <property>
+        <name>hive.zookeeper.session.timeout</name>
+        <value>30000</value>
+        <description>ZooKeeper session timeout in milliseconds</description>
+    </property>
+
+    <!-- ==================================================================== -->
+    <!-- Operational, Scratch & Impersonation Configuration                   -->
+    <!-- ==================================================================== -->
     <property>
         <name>hive.exec.local.scratchdir</name>
         <value>/tmp/hive</value>
     </property>
 
-    <!-- Directory for downloaded resources -->
     <property>
         <name>hive.downloaded.resources.dir</name>
         <value>/tmp/hive_resources</value>
     </property>
 
-    <!-- Impersonation setting: set to false so queries execute as hive service -->
     <property>
         <name>hive.server2.enable.doAs</name>
         <value>false</value>
+        <description>Executes queries under daemon identity to ensure uniform HDFS delegation</description>
     </property>
 </configuration>

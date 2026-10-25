@@ -51,8 +51,6 @@ if [ "$CURRENT_HOST" = "master" ]; then
     cat /home/huser/.ssh/id_ed25519.pub >> /home/huser/.ssh/authorized_keys
     # Distribute ONLY the public key to shared folder for workers (private key never leaves master)
     cp /home/huser/.ssh/id_ed25519.pub /vagrant/keys/cluster_key.pub
-    # Clean up any legacy private keys if present in shared folder
-    rm -f /vagrant/keys/id_rsa /vagrant/keys/id_rsa.pub /vagrant/keys/id_ed25519
 else
     echo "Configuring worker node authorized keys..."
     if [ -f /vagrant/keys/cluster_key.pub ]; then

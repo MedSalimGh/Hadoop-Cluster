@@ -178,37 +178,49 @@ echo "huser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/huser
 chmod 0440 /etc/sudoers.d/huser
 ```
 
-#### 3. Dynamic Runtime SSH Key Generation (No Stored Secrets)
-Rather than hardcoding static private keys in version control, `scripts/setup-common.sh` generates an `ed25519` keypair during provisioning if one does not already exist, sharing it across `/vagrant/keys/` (which is excluded from Git):
+#### 3. Dynamic Runtime SSH Key Generation & Guest Isolation (Zero Stored Secrets)
+Rather than committing private keys or copying them to shared host mounts, `scripts/setup-common.sh` generates an `ed25519` keypair strictly inside the `master` guest VM. The private key never leaves `master`, and only the public key (`cluster_key.pub`) is shared across `/vagrant/keys/` for worker authorization:
+
 ```bash
 mkdir -p /home/huser/.ssh /vagrant/keys
 
-if [ ! -f /vagrant/keys/id_rsa ]; then
-    if [ ! -f /home/huser/.ssh/id_rsa ]; then
+CURRENT_HOST=$(hostname)
+
+if [ "$CURRENT_HOST" = "master" ]; then
+    echo "Configuring SSH keypair on master..."
+    if [ ! -f /home/huser/.ssh/id_ed25519 ]; then
         ssh-keygen -t ed25519 -N '' \
-          -f /home/huser/.ssh/id_rsa \
+          -f /home/huser/.ssh/id_ed25519 \
           -C "hadoop-vagrant"
     fi
-    cp /home/huser/.ssh/id_rsa /vagrant/keys/id_rsa
-    cp /home/huser/.ssh/id_rsa.pub /vagrant/keys/id_rsa.pub
+    # Authorize key locally on master
+    cat /home/huser/.ssh/id_ed25519.pub >> /home/huser/.ssh/authorized_keys
+    # Distribute ONLY the public key to shared folder for workers (private key never leaves master)
+    cp /home/huser/.ssh/id_ed25519.pub /vagrant/keys/cluster_key.pub
 else
-    cp /vagrant/keys/id_rsa /home/huser/.ssh/id_rsa
-    cp /vagrant/keys/id_rsa.pub /home/huser/.ssh/id_rsa.pub
+    echo "Configuring worker node authorized keys..."
+    if [ -f /vagrant/keys/cluster_key.pub ]; then
+        cat /vagrant/keys/cluster_key.pub >> /home/huser/.ssh/authorized_keys
+    fi
 fi
 
-cat /home/huser/.ssh/id_rsa.pub >> /home/huser/.ssh/authorized_keys
+# Ensure unique entries in authorized_keys
+if [ -f /home/huser/.ssh/authorized_keys ]; then
+    sort -u /home/huser/.ssh/authorized_keys -o /home/huser/.ssh/authorized_keys
+fi
 
 cat << 'EOF' > /home/huser/.ssh/config
 Host *
+    IdentityFile ~/.ssh/id_ed25519
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     LogLevel ERROR
 EOF
 
 chmod 700 /home/huser/.ssh
-chmod 600 /home/huser/.ssh/id_rsa
-chmod 644 /home/huser/.ssh/id_rsa.pub
-chmod 600 /home/huser/.ssh/authorized_keys
+[ -f /home/huser/.ssh/id_ed25519 ] && chmod 600 /home/huser/.ssh/id_ed25519
+[ -f /home/huser/.ssh/id_ed25519.pub ] && chmod 644 /home/huser/.ssh/id_ed25519.pub
+[ -f /home/huser/.ssh/authorized_keys ] && chmod 600 /home/huser/.ssh/authorized_keys
 chmod 600 /home/huser/.ssh/config
 chown -R huser:huser /home/huser/.ssh
 ```

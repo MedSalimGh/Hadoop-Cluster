@@ -2,21 +2,31 @@
 .vagrant/
 *.log
 
-# Large binary archives (>100MB rejected by GitHub)
+# Large binary archives & datasets (>100MB rejected by GitHub)
+data/*.csv
+data/*.zip
+data/*.tar.gz
 resources/*.tar.gz
 resources/*.tmp
 resources/deb-cache/
+
+# Temporary build & preview folders
+preview/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# Personal named files
+*Gharsellaoui*
 
 # OS specific files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# LaTeX build artifacts
-report/*.aux
-report/*.log
-report/*.out
-report/*.toc
-report/*.synctex.gz
-report/*.fls
-report/*.fdb_latexmk

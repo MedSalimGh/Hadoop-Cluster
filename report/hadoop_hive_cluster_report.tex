@@ -66,37 +66,36 @@
     \centering
     \vspace*{1cm}
     
-    {\Huge \textbf{UNIVERSITY OF SFAX}}\\[0.3cm]
-    {\Large Faculty of Sciences of Sfax --- Computer Science and Communications Dept.}\\[0.2cm]
-    {\large \textbf{Class:} Analytical Data Architectures based on BD \quad | \quad \textbf{Academic Year:} 2025/2026}\\[0.2cm]
-    {\large \textbf{Teaching Assistant:} Montasser AKERMI}
+    {\Huge \textbf{BIG DATA ARCHITECTURES}}\\[0.3cm]
+    {\Large Distributed Infrastructure \& Automated Systems Engineering}\\[0.2cm]
+    {\large \textbf{Component:} Apache Hadoop 3.3.6 \& Apache Hive 4.0.1 Multi-Node Cluster}\\[0.2cm]
     
     \vspace{1.5cm}
     \rule{\linewidth}{1.5pt}\\[0.4cm]
     {\Huge \bfseries End-to-End Automated Deployment of Apache Hadoop 3.3.6 Multi-Node Cluster with MariaDB \& Apache Hive 4.0.1}\\[0.2cm]
-    {\Large \textit{Fully Automated Infrastructure as Code using Vagrant and Oracle VirtualBox on Drive E:}}\\[0.2cm]
+    {\Large \textit{Fully Automated Infrastructure as Code using Vagrant and Oracle VirtualBox}}\\[0.2cm]
     \rule{\linewidth}{1.5pt}
     
     \vspace{2cm}
     
     \begin{minipage}{0.45\textwidth}
         \begin{flushleft} \large
-            \textbf{Student / Author:}\\
-            Mohamed Salim Gharsellaoui\\
-            \textit{Data Science \& Engineering}
+            \textbf{System Specification:}\\
+            Debian 12 Bookworm (x86\_64)\\
+            \textit{OpenJDK 17 LTS (HotSpot)}
         \end{flushleft}
     \end{minipage}
     \hfill
     \begin{minipage}{0.45\textwidth}
         \begin{flushright} \large
-            \textbf{Supervisor / TA:}\\
-            Montasser AKERMI\\
-            \textit{Big Data Architectures}
+            \textbf{Cluster Topology:}\\
+            1 Master + 2 DataNodes\\
+            \textit{MariaDB Metastore Backend}
         \end{flushright}
     \end{minipage}
     
     \vfill
-    {\large October 2026}
+    {\large Production Architecture Documentation}
 \end{titlepage}
 
 \tableofcontents
@@ -107,7 +106,7 @@
 % ---------------------------------------------------------
 This technical report details the complete, production-grade automated deployment of a distributed \textbf{Apache Hadoop 3.3.6} multi-node cluster integrated with \textbf{MariaDB 10.11} and \textbf{Apache Hive 4.0.1}. The deployment is orchestrated using \textbf{Vagrant} and \textbf{Oracle VirtualBox} on a designated non-system drive (\texttt{E:\textbackslash}) to address host storage constraints.
 
-\subsection{Core Lab Learning Objectives}
+\subsection{Core Deployment Objectives}
 \begin{itemize}[leftmargin=1.5cm]
     \item Deploy an Infrastructure-as-Code (IaC) multi-node virtualized environment comprising 1 NameNode/Master node and 2 DataNode/Worker nodes.
     \item Configure cluster networking, passwordless SSH communication, and distributed security primitives.
@@ -521,9 +520,9 @@ hadoop jar /home/huser/hadoop-3.3.6/share/hadoop/mapreduce/hadoop-mapreduce-exam
 \begin{lstlisting}[language=SQL, caption={Hive SQL Validation Script}]
 CREATE DATABASE IF NOT EXISTS lab_db;
 USE lab_db;
-CREATE TABLE students (id INT, name STRING, specialty STRING);
-INSERT INTO students VALUES (1, 'Salim', 'Big Data'), (2, 'Montasser', 'Data Architecture');
-SELECT specialty, count(*) FROM students GROUP BY specialty;
+CREATE TABLE cluster_nodes (id INT, name STRING, role STRING);
+INSERT INTO cluster_nodes VALUES (1, 'master', 'NameNode / ResourceManager'), (2, 'worker1', 'DataNode / NodeManager');
+SELECT role, count(*) FROM cluster_nodes GROUP BY role;
 \end{lstlisting}
 
 % ---------------------------------------------------------

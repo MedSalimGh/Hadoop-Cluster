@@ -40,6 +40,6 @@
     <property>
         <name>dfs.permissions.enabled</name>
         <value>false</value>
-        <description>Disable HDFS strict permission checking for seamless student lab operations.</description>
+        <description>Disable HDFS strict permission checking for development cluster operations.</description>
     </property>
 </configuration>

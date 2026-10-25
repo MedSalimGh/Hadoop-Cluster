@@ -22,7 +22,7 @@ su - huser -c "hive -e '
 CREATE DATABASE IF NOT EXISTS test_db;
 USE test_db;
 CREATE TABLE IF NOT EXISTS student (id INT, name STRING, dept STRING);
-INSERT INTO student VALUES (1, \"Salim\", \"Data Science\"), (2, \"Montasser\", \"Big Data\");
+INSERT INTO student VALUES (1, \"Alice\", \"Data Science\"), (2, \"Bob\", \"Big Data\");
 SELECT * FROM student;
 '"
 

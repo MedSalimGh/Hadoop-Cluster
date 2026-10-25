@@ -17,7 +17,9 @@ Vagrant.configure("2") do |config|
       vb.memory = "2048"
       vb.cpus = 2
     end
-    master.vm.provision "shell", path: "scripts/setup-common.sh"
+    master.vm.provision "common", type: "shell", path: "scripts/setup-common.sh"
+    master.vm.provision "hadoop", type: "shell", path: "scripts/setup-hadoop.sh"
+    master.vm.provision "master", type: "shell", path: "scripts/setup-master.sh"
   end
 
   # ============================================================
@@ -31,7 +33,9 @@ Vagrant.configure("2") do |config|
       vb.memory = "1280"
       vb.cpus = 1
     end
-    worker1.vm.provision "shell", path: "scripts/setup-common.sh"
+    worker1.vm.provision "common", type: "shell", path: "scripts/setup-common.sh"
+    worker1.vm.provision "hadoop", type: "shell", path: "scripts/setup-hadoop.sh"
+    worker1.vm.provision "worker", type: "shell", path: "scripts/setup-worker.sh"
   end
 
   # ============================================================
@@ -45,6 +49,8 @@ Vagrant.configure("2") do |config|
       vb.memory = "1280"
       vb.cpus = 1
     end
-    worker2.vm.provision "shell", path: "scripts/setup-common.sh"
+    worker2.vm.provision "common", type: "shell", path: "scripts/setup-common.sh"
+    worker2.vm.provision "hadoop", type: "shell", path: "scripts/setup-hadoop.sh"
+    worker2.vm.provision "worker", type: "shell", path: "scripts/setup-worker.sh"
   end
 end

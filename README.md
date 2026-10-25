@@ -83,14 +83,18 @@ Hadoop-Cluster/
 │   ├── setup-hadoop.sh              # Hadoop 3.3.6 automated installation & profile setup
 │   ├── setup-master.sh              # MariaDB metastore provisioning & Hive master deployment
 │   ├── setup-worker.sh              # Worker NodeManager/DataNode provisioning
+│   ├── start-cluster.sh             # Automated cluster-wide launcher (HDFS + YARN + Hive)
 │   ├── start-hive.sh                # Metastore & HiveServer2 launcher with port polling
+│   ├── stop-cluster.sh              # Graceful cluster-wide shutdown (Hive + YARN + HDFS)
 │   ├── stop-hive.sh                 # Graceful Hive process shutdown script
 │   ├── test-ha-failover.sh          # 6-stage automated crash simulation & failover validator
 │   ├── test-hive.sql                # Verification DDL/DML SQL script
 │   └── verify-cluster.sh            # 5-stage automated cluster health check
 ├── .gitignore                       # Git exclusion rules (keys, datasets, temp files)
 ├── LICENSE                          # MIT License
+├── Makefile                         # Unified cluster automation commands (make up/start/stop)
 ├── README.md                        # Master cluster architecture and operational manual
+├── SECURITY.md                      # Security policy, threat model, and hardening guide
 └── Vagrantfile                      # 3-Node VirtualBox Infrastructure-as-Code definition
 ```
 
@@ -102,7 +106,7 @@ Hadoop-Cluster/
 - **Git** ([Download](https://git-scm.com/))
 - **Oracle VirtualBox 7.x** ([Download](https://www.virtualbox.org/))
 - **Vagrant 2.3+** ([Download](https://www.vagrantup.com/))
-- System Hardware: Minimum 8 GB Host RAM and 25 GB free disk space. Supported on Windows, macOS, and Linux.
+- System Hardware: Minimum 8 GB Host RAM and 25 GB free disk space. Supported across Windows, macOS, and Linux.
 
 ### 2. Clone Repository & Boot Cluster
 ```bash
@@ -110,42 +114,39 @@ git clone https://github.com/MedSalimGh/Hadoop-Cluster.git
 cd Hadoop-Cluster
 vagrant up
 ```
-*Vagrant will automatically:*
-1. Boot all 3 Debian 12 virtual machines with private IP networking.
-2. Install OpenJDK 17 LTS and base cluster dependencies.
-3. Dynamically generate an `ed25519` SSH keypair on `master` and distribute it across all nodes.
-4. Download and configure Apache Hadoop 3.3.6 and Apache Hive 4.0.1.
-5. Provision MariaDB 10.11 and initialize the Hive Metastore schema.
+*(Alternatively, run `make up`)*
 
-### 3. Log In to Master Node
+*Vagrant sequentially boots and fully provisions all 3 virtual machines:*
+1. Installs OpenJDK 17 LTS, base utilities, and configures private IP networking.
+2. Dynamically generates an `ed25519` SSH keypair on `master` and securely authorizes it on workers (private key never leaves `master`).
+3. Downloads, installs, and configures Apache Hadoop 3.3.6 across all nodes.
+4. Formats the HDFS NameNode on `master`.
+5. Installs MariaDB 10.11, configures remote network binding (`0.0.0.0`), downloads Apache Hive 4.0.1, links the JDBC connector, and initializes the metastore schema.
+
+### 3. Start Distributed Cluster Services
 ```bash
-vagrant ssh master
+# Start HDFS, YARN, and Hive services with a single command
+vagrant ssh master -c "bash /vagrant/scripts/start-cluster.sh"
+```
+*(Alternatively, run `make start`)*
+
+### 4. Optional: Enable High Availability (HA) & Test Failover
+To activate Apache ZooKeeper dynamic service discovery and deploy Hive on `worker1` in an Active-Active HA topology:
+```bash
+# Deploy ZooKeeper and launch secondary HA instances on worker1
+vagrant ssh master -c "bash /vagrant/scripts/setup-ha-hive.sh"
+# (or: make ha-setup)
+
+# Run 6-stage automated disaster recovery and failover verification
+vagrant ssh master -c "bash /vagrant/scripts/test-ha-failover.sh"
+# (or: make ha-test)
 ```
 
-### 4. Start Storage & Compute Daemons (as `huser`)
+### 5. Validate Cluster Health
 ```bash
-su - huser
-
-# Format HDFS NameNode (required only on the very first initial boot)
-hdfs namenode -format -force
-
-# Start HDFS storage daemons across master and workers
-start-dfs.sh
-
-# Start YARN compute daemons across master and workers
-start-yarn.sh
-
-# Deploy & Start Apache Hive High Availability (ZooKeeper + Dual HMS + Dual HS2)
-bash /vagrant/scripts/setup-ha-hive.sh
-```
-
-### 5. Validate Cluster Health & Run Automated Failover Test
-```bash
-# Run 5-stage cluster verification (JPS, HDFS, YARN, Pi benchmark, Hive query)
-bash /vagrant/scripts/verify-cluster.sh
-
-# Run 6-stage High Availability failover and crash simulation
-bash /vagrant/scripts/test-ha-failover.sh
+# Run 5-stage automated cluster verification suite
+vagrant ssh master -c "bash /vagrant/scripts/verify-cluster.sh"
+# (or: make verify)
 ```
 
 ---
@@ -616,6 +617,8 @@ All scripts are stored in [`scripts/`](scripts/) and mounted at `/vagrant/script
 
 | Script | Location | Invocation | Purpose |
 | :--- | :--- | :--- | :--- |
+| **`start-cluster.sh`** | [`scripts/start-cluster.sh`](scripts/start-cluster.sh) | `bash /vagrant/scripts/start-cluster.sh` | Orchestrates end-to-end cluster startup (HDFS, YARN, and Hive services). |
+| **`stop-cluster.sh`** | [`scripts/stop-cluster.sh`](scripts/stop-cluster.sh) | `bash /vagrant/scripts/stop-cluster.sh` | Gracefully shuts down all cluster services (Hive, YARN, and HDFS). |
 | **`setup-ha-hive.sh`** | [`scripts/setup-ha-hive.sh`](scripts/setup-ha-hive.sh) | `bash /vagrant/scripts/setup-ha-hive.sh` | Deploys ZooKeeper, binds MariaDB to `0.0.0.0`, provisions Hive on `worker1`, and launches active-active HA services. |
 | **`test-ha-failover.sh`** | [`scripts/test-ha-failover.sh`](scripts/test-ha-failover.sh) | `bash /vagrant/scripts/test-ha-failover.sh` | Executes 6-stage crash simulation, ZooKeeper discovery failover validation, and self-healing verification. |
 | **`start-hive.sh`** | [`scripts/start-hive.sh`](scripts/start-hive.sh) | `bash /vagrant/scripts/start-hive.sh` | Launches Hive Metastore & HiveServer2 with automated port polling (`9083`, `10000`). |

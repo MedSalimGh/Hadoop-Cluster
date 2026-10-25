@@ -11,7 +11,13 @@ apt-get install -y mariadb-server libmariadb-java
 systemctl enable mariadb
 systemctl start mariadb
 
-# Configure Hive Metastore Database and User in MariaDB (Matches PDF Prerequisites)
+# Configure MariaDB for cluster-wide network access (bind 0.0.0.0)
+if [ -f /etc/mysql/mariadb.conf.d/50-server.cnf ]; then
+    sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+    systemctl restart mariadb
+fi
+
+# Configure Hive Metastore Database and User in MariaDB
 echo "Configuring MySQL/MariaDB database and user 'hive'..."
 mysql -u root << 'EOF'
 CREATE DATABASE IF NOT EXISTS metastore_db CHARACTER SET utf8 COLLATE utf8_general_ci;
@@ -89,52 +95,26 @@ chown -R huser:huser /opt/apache-hive-${HIVE_VERSION}-bin
 chown -R huser:huser /opt/hive
 
 echo "=========================================================="
-echo "=== Step 5: Formatting HDFS and Starting Hadoop Daemons =="
+echo "=== Step 5: Formatting HDFS NameNode (Initial Setup) ====="
 echo "=========================================================="
-# Format NameNode only if not formatted yet
 if [ ! -d "/home/huser/hadoopdata/dfs/name/current" ]; then
-    echo "Formatting HDFS NameNode..."
+    echo "Formatting HDFS NameNode storage..."
     su - huser -c "hdfs namenode -format -force -nonInteractive"
+else
+    echo "HDFS NameNode is already formatted."
 fi
 
-echo "Starting HDFS Daemons (NameNode, DataNodes, SecondaryNameNode)..."
-su - huser -c "start-dfs.sh"
-
-echo "Starting YARN Daemons (ResourceManager, NodeManagers)..."
-su - huser -c "start-yarn.sh"
-
-echo "Waiting for HDFS safe mode to clear..."
-su - huser -c "hdfs dfsadmin -safemode wait"
+echo "=========================================================="
+echo "=== Step 6: Initializing Hive Metastore Schema in MariaDB ="
+echo "=========================================================="
+if su - huser -c "schematool -info -dbType mysql" >/dev/null 2>&1; then
+    echo "Hive Metastore schema is already initialized."
+else
+    echo "Initializing Hive Metastore schema in MariaDB..."
+    su - huser -c "schematool -initSchema -dbType mysql --verbose"
+fi
 
 echo "=========================================================="
-echo "=== Step 6: Creating HDFS Directories for Hive ==========="
+echo "=== Master Node Provisioning Completed Successfully! ====="
 echo "=========================================================="
-# Matches PDF Steps 6 & 7
-echo "Creating /user/hive/warehouse and /tmp/hive..."
-su - huser -c "hadoop fs -mkdir -p /user/hive/warehouse"
-su - huser -c "hadoop fs -mkdir -p /tmp/hive"
-su - huser -c "hadoop fs -chmod 777 /user/hive/warehouse"
-su - huser -c "hadoop fs -chmod 777 /tmp/hive"
-su - huser -c "hadoop fs -chmod 777 /tmp"
-
-echo "=========================================================="
-echo "=== Step 7: Initializing Hive Metastore Schema ==========="
-echo "=========================================================="
-# Matches PDF Step 10
-echo "Initializing Hive Metastore schema in MariaDB..."
-su - huser -c "schematool -initSchema -dbType mysql --verbose" || true
-
-echo "=========================================================="
-echo "=== Step 8: Starting Hive Metastore & HiveServer2 ========"
-echo "=========================================================="
-# Matches PDF Step 11
-echo "Starting Hive Metastore service in background..."
-su - huser -c "nohup hive --service metastore > /home/huser/hive-metastore.log 2>&1 &"
-
-echo "Starting HiveServer2 service in background..."
-su - huser -c "nohup hive --service hiveserver2 > /home/huser/hive-hiveserver2.log 2>&1 &"
-
-echo "Waiting for services to initialize..."
-sleep 10
-
-echo "=== Master Node Provisioning Finished Successfully ==="
+echo "Master node is prepared with Hadoop 3.3.6, Hive 4.0.1, and MariaDB."

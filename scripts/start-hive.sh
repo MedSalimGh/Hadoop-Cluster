@@ -1,40 +1,53 @@
 #!/usr/bin/env bash
 set -e
 
-# Kill any stale Hive instances
-echo "Stopping any existing Hive processes..."
-pkill -f "org.apache.hadoop.hive.metastore.HiveMetaStore" 2>/dev/null || true
-pkill -f "org.apache.hive.service.server.HiveServer2" 2>/dev/null || true
-sleep 2
-
 # Source environment
-export HIVE_HOME=/home/huser/apache-hive-4.0.1-bin
+export HIVE_HOME=/opt/hive
 export HADOOP_HOME=/home/huser/hadoop-3.3.6
 export PATH=$PATH:$HIVE_HOME/bin:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 
+# Ensure HDFS directories exist if HDFS is up and out of safemode
+if hdfs dfsadmin -safemode get 2>/dev/null | grep -q "OFF"; then
+    echo "Ensuring Hive warehouse and scratch directories exist in HDFS..."
+    hadoop fs -mkdir -p /user/hive/warehouse /tmp/hive 2>/dev/null || true
+    hadoop fs -chmod -R 777 /user/hive/warehouse /tmp/hive /tmp 2>/dev/null || true
+fi
+
+# Stop any stale instances cleanly before launching new daemons
+if [ -f /vagrant/scripts/stop-hive.sh ]; then
+    bash /vagrant/scripts/stop-hive.sh 2>/dev/null || true
+fi
+
+wait_for_port() {
+    local host="$1"
+    local port="$2"
+    local timeout="$3"
+    local service_name="$4"
+
+    echo "Waiting for $service_name to bind to $host:$port (timeout: ${timeout}s)..."
+    for ((i = 1; i <= timeout; i++)); do
+        if ss -tulpn | grep -q ":${port} "; then
+            echo "$service_name is listening on port $port."
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "ERROR: $service_name ($host:$port) failed to become ready after ${timeout}s!" >&2
+    return 1
+}
+
 echo "Starting Hive Metastore service..."
 nohup hive --service metastore > /tmp/hive-metastore.log 2>&1 &
+echo $! > /tmp/hive-metastore.pid
 
-echo "Waiting for Metastore to bind to port 9083..."
-for i in {1..20}; do
-  if ss -tulpn | grep -q ":9083 "; then
-    echo "Metastore is listening on port 9083."
-    break
-  fi
-  sleep 1
-done
+wait_for_port localhost 9083 30 "Hive Metastore"
 
 echo "Starting HiveServer2 service..."
 nohup hive --service hiveserver2 > /tmp/hiveserver2.log 2>&1 &
+echo $! > /tmp/hiveserver2.pid
 
-echo "Waiting for HiveServer2 to bind to port 10000..."
-for i in {1..35}; do
-  if ss -tulpn | grep -q ":10000 "; then
-    echo "HiveServer2 is listening on port 10000. Ready for Beeline!"
-    break
-  fi
-  sleep 1
-done
+wait_for_port localhost 10000 45 "HiveServer2"
 
 echo "=========================================================="
 echo "Hive Metastore (Port 9083) and HiveServer2 (Port 10000) are active."

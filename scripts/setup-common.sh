@@ -38,33 +38,45 @@ chmod 0440 /etc/sudoers.d/huser
 echo "=== [4/5] Configuring Passwordless Cluster SSH Keys ==="
 mkdir -p /home/huser/.ssh /vagrant/keys
 
-# Generate cluster key dynamically during provisioning if not present
-if [ ! -f /vagrant/keys/id_rsa ]; then
-    if [ ! -f /home/huser/.ssh/id_rsa ]; then
+CURRENT_HOST=$(hostname)
+
+if [ "$CURRENT_HOST" = "master" ]; then
+    echo "Configuring SSH keypair on master..."
+    if [ ! -f /home/huser/.ssh/id_ed25519 ]; then
         ssh-keygen -t ed25519 -N '' \
-          -f /home/huser/.ssh/id_rsa \
+          -f /home/huser/.ssh/id_ed25519 \
           -C "hadoop-vagrant"
     fi
-    cp /home/huser/.ssh/id_rsa /vagrant/keys/id_rsa
-    cp /home/huser/.ssh/id_rsa.pub /vagrant/keys/id_rsa.pub
+    # Authorize key locally on master
+    cat /home/huser/.ssh/id_ed25519.pub >> /home/huser/.ssh/authorized_keys
+    # Distribute ONLY the public key to shared folder for workers (private key never leaves master)
+    cp /home/huser/.ssh/id_ed25519.pub /vagrant/keys/cluster_key.pub
+    # Clean up any legacy private keys if present in shared folder
+    rm -f /vagrant/keys/id_rsa /vagrant/keys/id_rsa.pub /vagrant/keys/id_ed25519
 else
-    cp /vagrant/keys/id_rsa /home/huser/.ssh/id_rsa
-    cp /vagrant/keys/id_rsa.pub /home/huser/.ssh/id_rsa.pub
+    echo "Configuring worker node authorized keys..."
+    if [ -f /vagrant/keys/cluster_key.pub ]; then
+        cat /vagrant/keys/cluster_key.pub >> /home/huser/.ssh/authorized_keys
+    fi
 fi
 
-cat /home/huser/.ssh/id_rsa.pub >> /home/huser/.ssh/authorized_keys
+# Ensure unique entries in authorized_keys
+if [ -f /home/huser/.ssh/authorized_keys ]; then
+    sort -u /home/huser/.ssh/authorized_keys -o /home/huser/.ssh/authorized_keys
+fi
 
 cat << 'EOF' > /home/huser/.ssh/config
 Host *
+    IdentityFile ~/.ssh/id_ed25519
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     LogLevel ERROR
 EOF
 
 chmod 700 /home/huser/.ssh
-chmod 600 /home/huser/.ssh/id_rsa
-chmod 644 /home/huser/.ssh/id_rsa.pub
-chmod 600 /home/huser/.ssh/authorized_keys
+[ -f /home/huser/.ssh/id_ed25519 ] && chmod 600 /home/huser/.ssh/id_ed25519
+[ -f /home/huser/.ssh/id_ed25519.pub ] && chmod 644 /home/huser/.ssh/id_ed25519.pub
+[ -f /home/huser/.ssh/authorized_keys ] && chmod 600 /home/huser/.ssh/authorized_keys
 chmod 600 /home/huser/.ssh/config
 chown -R huser:huser /home/huser/.ssh
 

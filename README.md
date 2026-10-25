@@ -5,14 +5,12 @@
 [![ZooKeeper Version](https://img.shields.io/badge/Apache%20ZooKeeper-3.8.0-0B8E36.svg)](https://zookeeper.apache.org/)
 [![Database](https://img.shields.io/badge/Metastore-MariaDB%2010.11%20%2F%20MySQL-003545.svg?logo=mariadb)](https://mariadb.org/)
 [![Java Version](https://img.shields.io/badge/Java-OpenJDK%2017%20LTS-ED8B00.svg?logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Vagrant](https://img.shields.io/badge/Vagrant-2.x-1563FF.svg?logo=vagrant&logoColor=white)](https://www.vagrantup.com/)
-[![VirtualBox](https://img.shields.io/badge/VirtualBox-7.x-246BB3.svg?logo=virtualbox&logoColor=white)](https://www.virtualbox.org/)
-[![OS](https://img.shields.io/badge/OS-Debian%2012%20Bookworm-D70A53.svg?logo=debian&logoColor=white)](https://www.debian.org/)
+[![CI](https://github.com/MedSalimGh/Hadoop-Cluster/actions/workflows/validate.yml/badge.svg)](https://github.com/MedSalimGh/Hadoop-Cluster/actions)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-An enterprise-grade, fully automated 3-node distributed Big Data cluster deploying **Apache Hadoop 3.3.6** (HDFS storage & YARN resource negotiation) and **Apache Hive 4.0.1** in an **Active-Active High Availability (HA)** architecture coordinated by **Apache ZooKeeper 3.8.0** with a **MariaDB 10.11 relational metastore backend**. Deployed completely as Infrastructure as Code (IaC) using **Vagrant** and **Oracle VirtualBox**.
+A reproducible 3-node **Apache Hadoop 3.3.6** and **Apache Hive 4.0.1** development and educational cluster provisioned with **Vagrant** and **VirtualBox**, featuring HDFS distributed storage, YARN resource management, a MariaDB 10.11 metastore backend, and an **Active-Active High Availability (HA)** Hive failover architecture coordinated by **Apache ZooKeeper 3.8.0**.
 
-Engineered for modern production environments running on **OpenJDK 17 LTS (HotSpot)** with comprehensive JEP 403 reflection access flags, dynamic runtime SSH key generation, resilient parallel shell execution (`pdsh`), automated daemon supervision, dual HiveServer2 endpoints with dynamic service discovery, dual Hive Metastore failover, and automated self-healing disaster recovery scripts.
+Engineered for local virtualization running on **OpenJDK 17 LTS (HotSpot)** with comprehensive JEP 403 reflection access flags, dynamic runtime SSH key generation with guest isolation, resilient parallel shell execution (`pdsh`), automated daemon supervision, dual HiveServer2 endpoints with dynamic service discovery, dual Hive Metastore failover, and automated self-healing disaster recovery scripts.
 
 ---
 
@@ -66,6 +64,8 @@ The cluster consists of three Debian 12 (Bookworm) 64-bit virtual machines inter
 
 ```
 Hadoop-Cluster/
+├── .github/                         # GitHub Actions automated CI workflows
+│   └── workflows/validate.yml       # Automated shell, XML, and Vagrantfile linter
 ├── config/                          # Centralized Hadoop & Hive XML configuration templates
 │   ├── core-site.xml                # HDFS defaultFS, IPC timeouts & proxyuser authorization
 │   ├── fix-java17-yarn.sh           # Helper utility for YARN container Java 17 reflection flags
@@ -74,7 +74,9 @@ Hadoop-Cluster/
 │   ├── mapred-site.xml              # MapReduce framework, memory allocation & AM classpath
 │   ├── workers                      # DataNode & NodeManager worker node inventory
 │   └── yarn-site.xml                # ResourceManager, NodeManager & auxiliary shuffle services
-├── resources/                       # Binary connectors and driver dependencies
+├── resources/                       # Binary connectors, checksums, and licensing
+│   ├── LICENSE.mysql-connector      # GPLv2 with Universal FOSS Exception documentation
+│   ├── SHA256SUMS                   # Pinned SHA-256 cryptographic checksums
 │   └── mysql-connector-j-8.4.0.jar  # Official MySQL/MariaDB JDBC Connector (Type 4)
 ├── scripts/                         # Cluster lifecycle, deployment, and testing shell scripts
 │   ├── fix-path.sh                  # Profile path resolution utility
@@ -90,7 +92,10 @@ Hadoop-Cluster/
 │   ├── test-ha-failover.sh          # 6-stage automated crash simulation & failover validator
 │   ├── test-hive.sql                # Verification DDL/DML SQL script
 │   └── verify-cluster.sh            # 5-stage automated cluster health check
+├── .env.example                     # Environment configuration template
 ├── .gitignore                       # Git exclusion rules (keys, datasets, temp files)
+├── CHANGELOG.md                     # Semantic versioning release notes & history
+├── CONTRIBUTING.md                  # Development guidelines, syntax checks, and testing
 ├── LICENSE                          # MIT License
 ├── Makefile                         # Unified cluster automation commands (make up/start/stop)
 ├── README.md                        # Master cluster architecture and operational manual
@@ -290,6 +295,9 @@ GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'%';
 GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'localhost';
 FLUSH PRIVILEGES;
 ```
+
+> [!WARNING]
+> **Lab Security Notice:** The default `hive` database password is intended strictly for isolated local development virtual machines. Never expose this configuration or port 3306 to a public or routed network. In production environments, generate strong credentials dynamically (e.g. `openssl rand -base64 24`) and inject them via environment variables or secret vaults (see [SECURITY.md](SECURITY.md)).
 
 ---
 

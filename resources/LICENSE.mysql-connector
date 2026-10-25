@@ -1,0 +1,16 @@
+MySQL Connector/J 8.4.0
+Copyright (c) 2000, 2024, Oracle and/or its affiliates.
+
+This product is licensed under the GNU General Public License version 2 (GPLv2)
+with the Universal FOSS Exception, v1.0.
+
+A copy of the GNU General Public License is available at:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+A copy of the Universal FOSS Exception is available at:
+https://oss.oracle.com/licenses/universal-foss-exception/
+
+Technical Rationale:
+This Type 4 pure Java JDBC driver enables Apache Hive 4.0.1 to communicate with
+the MariaDB/MySQL relational metastore backend (`metastore_db`) on port 3306.
+Checksum is recorded in resources/SHA256SUMS.

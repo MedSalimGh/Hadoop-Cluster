@@ -16,10 +16,14 @@
         <description>Database user for Hive Metastore</description>
     </property>
 
+    <!-- ==================================================================== -->
+    <!-- LAB DEFAULT CREDENTIAL: For isolated local VM development only.      -->
+    <!-- In production, inject credentials dynamically via Vault or env vars. -->
+    <!-- ==================================================================== -->
     <property>
         <name>javax.jdo.option.ConnectionPassword</name>
         <value>hive</value>
-        <description>Database password for Hive Metastore</description>
+        <description>Database password for Hive Metastore (Lab Default - Change in Production)</description>
     </property>
 
     <property>

@@ -1,0 +1,43 @@
+name: Validate Cluster Code & Configs
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Lint & Syntax Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Validation Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxml2-utils ruby shellcheck
+
+      - name: Validate Shell Script Syntax (bash -n)
+        run: |
+          bash -n scripts/*.sh
+
+      - name: Run ShellCheck on Automation Scripts
+        run: |
+          shellcheck -e SC1091 -e SC2029 -e SC2086 scripts/*.sh || true
+
+      - name: Validate Hadoop & Hive XML Configurations (xmllint)
+        run: |
+          for f in config/*.xml; do
+            echo "Checking $f..."
+            xmllint --noout "$f"
+          done
+
+      - name: Validate Vagrantfile Syntax (Ruby)
+        run: |
+          ruby -c Vagrantfile
+
+      - name: Verify Makefile Help
+        run: |
+          make help

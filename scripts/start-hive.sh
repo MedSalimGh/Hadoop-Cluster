@@ -9,8 +9,8 @@ export PATH=$PATH:$HIVE_HOME/bin:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
 # Ensure HDFS directories exist if HDFS is up and out of safemode
 if hdfs dfsadmin -safemode get 2>/dev/null | grep -q "OFF"; then
     echo "Ensuring Hive warehouse and scratch directories exist in HDFS..."
-    hadoop fs -mkdir -p /user/hive/warehouse /tmp/hive 2>/dev/null || true
-    hadoop fs -chmod -R 777 /user/hive/warehouse /tmp/hive /tmp 2>/dev/null || true
+    hadoop fs -mkdir -p /user/hive/warehouse /tmp/hive
+    hadoop fs -chmod -R 777 /user/hive/warehouse /tmp/hive /tmp
 fi
 
 # Stop any stale instances cleanly before launching new daemons

@@ -34,9 +34,8 @@ chown huser:huser /opt/hive/conf/hive-site.xml
 
 # 4. Stop any existing Hive standalone processes on master
 echo "[4/4] Stopping existing Hive processes on master..."
-pkill -f "org.apache.hadoop.hive.metastore.HiveMetaStore" || true
-pkill -f "org.apache.hive.service.server.HiveServer2" || true
-sleep 3
+bash /vagrant/scripts/stop-hive.sh 2>/dev/null || true
+sleep 2
 
 echo "=========================================================="
 echo "=== Step 2: Provisioning Apache Hive 4.0.1 on worker1 ===="
@@ -79,9 +78,8 @@ if ! grep -q \"HIVE_HOME\" /home/huser/.bashrc; then
     echo \"export PATH=\\\$PATH:\\\$HIVE_HOME/bin\" >> /home/huser/.bashrc
 fi
 
-# Stop any existing processes on worker1
-pkill -f \"org.apache.hadoop.hive.metastore.HiveMetaStore\" || true
-pkill -f \"org.apache.hive.service.server.HiveServer2\" || true
+# Stop any existing processes on worker1 cleanly
+bash /vagrant/scripts/stop-hive.sh 2>/dev/null || true
 '"
 
 echo "=========================================================="
@@ -90,42 +88,60 @@ echo "=========================================================="
 
 echo "[1/4] Launching Primary Hive Metastore on master (port 9083)..."
 su - huser -c "nohup hive --service metastore > /tmp/hive-metastore-master.log 2>&1 &"
+su - huser -c "echo \$! > /tmp/hive-metastore.pid"
 
 echo "[2/4] Launching Secondary Hive Metastore on worker1 (port 9083)..."
-sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "nohup hive --service metastore > /tmp/hive-metastore-worker1.log 2>&1 &"
+sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "nohup hive --service metastore > /tmp/hive-metastore-worker1.log 2>&1 & echo \$! > /tmp/hive-metastore.pid"
 
 echo "[3/4] Launching Primary HiveServer2 on master (port 10000)..."
 su - huser -c "nohup hive --service hiveserver2 > /tmp/hive-hs2-master.log 2>&1 &"
+su - huser -c "echo \$! > /tmp/hiveserver2.pid"
 
 echo "[4/4] Launching Secondary HiveServer2 on worker1 (port 10000)..."
-sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "nohup hive --service hiveserver2 > /tmp/hive-hs2-worker1.log 2>&1 &"
+sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "nohup hive --service hiveserver2 > /tmp/hive-hs2-worker1.log 2>&1 & echo \$! > /tmp/hiveserver2.pid"
 
 echo "=========================================================="
 echo "=== Step 4: Polling Service Readiness & ZooKeeper ========"
 echo "=========================================================="
 
 echo "Waiting for services to bind to listening ports (this may take 20-30s)..."
+HA_READY=false
 for i in {1..30}; do
-    MASTER_HMS=$(ss -tulpn | grep -c 9083 || true)
-    MASTER_HS2=$(ss -tulpn | grep -c 10000 || true)
-    WORKER_HMS=$(sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "ss -tulpn | grep -c 9083" || true)
-    WORKER_HS2=$(sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "ss -tulpn | grep -c 10000" || true)
+    MASTER_HMS=$(ss -tulpn | grep -c ":9083 " || true)
+    MASTER_HS2=$(ss -tulpn | grep -c ":10000 " || true)
+    WORKER_HMS=$(sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "ss -tulpn | grep -c ':9083 '" || true)
+    WORKER_HS2=$(sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "ss -tulpn | grep -c ':10000 '" || true)
 
     echo -ne "Attempt $i/30: Master HMS=$MASTER_HMS, Master HS2=$MASTER_HS2 | Worker HMS=$WORKER_HMS, Worker HS2=$WORKER_HS2\r"
     if [ "$MASTER_HMS" -ge 1 ] && [ "$MASTER_HS2" -ge 1 ] && [ "$WORKER_HMS" -ge 1 ] && [ "$WORKER_HS2" -ge 1 ]; then
         echo -e "\nAll 4 High Availability daemons are bound and listening!"
+        HA_READY=true
         break
     fi
     sleep 3
 done
 
+if [ "$HA_READY" = false ]; then
+    echo -e "\nERROR: High Availability services failed to bind within the 90-second timeout!" >&2
+    echo "Diagnostic: Master HMS=$MASTER_HMS, Master HS2=$MASTER_HS2 | Worker HMS=$WORKER_HMS, Worker HS2=$WORKER_HS2" >&2
+    exit 1
+fi
+
 echo ""
 echo "=========================================================="
 echo "=== Step 5: Verifying Dynamic Discovery in ZooKeeper ====="
 echo "=========================================================="
-echo "Registered HiveServer2 instances in ZooKeeper (/hiveserver2):"
+echo "Verifying registered HiveServer2 instances in ZooKeeper (/hiveserver2)..."
 sleep 5
-/usr/share/zookeeper/bin/zkCli.sh -server localhost:2181 ls /hiveserver2 2>/dev/null | tail -n 5
+
+ZK_NODES=$(/usr/share/zookeeper/bin/zkCli.sh -server localhost:2181 ls /hiveserver2 2>/dev/null | grep 'serverUri=' || true)
+if [ -z "$ZK_NODES" ]; then
+    echo "ERROR: No HiveServer2 instances registered under ZooKeeper namespace /hiveserver2!" >&2
+    exit 1
+fi
+
+echo "Registered znodes found:"
+echo "$ZK_NODES"
 
 echo ""
 echo "=========================================================="

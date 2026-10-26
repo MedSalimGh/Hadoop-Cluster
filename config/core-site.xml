@@ -15,25 +15,27 @@
         <description>Base directory for local filesystem storage.</description>
     </property>
 
-    <!-- Proxy user authorization for huser (required for HiveServer2 & MapReduce) -->
+    <!-- Proxy user authorization for huser (Restricted to cluster nodes) -->
     <property>
         <name>hadoop.proxyuser.huser.hosts</name>
-        <value>*</value>
-        <description>Allows huser to connect from any host to impersonate other users.</description>
+        <value>master,worker1,worker2,192.168.56.10,192.168.56.11,192.168.56.12,localhost,127.0.0.1</value>
+        <description>Restricts huser proxy authorization to known cluster nodes.</description>
     </property>
     <property>
         <name>hadoop.proxyuser.huser.groups</name>
-        <value>*</value>
-        <description>Allows huser to impersonate any user group.</description>
+        <value>hadoop,huser,hive,sudo</value>
+        <description>Restricts huser proxy authorization to cluster service groups.</description>
     </property>
 
-    <!-- Proxy user authorization for hive user -->
+    <!-- Proxy user authorization for hive user (Restricted to cluster nodes) -->
     <property>
         <name>hadoop.proxyuser.hive.hosts</name>
-        <value>*</value>
+        <value>master,worker1,worker2,192.168.56.10,192.168.56.11,192.168.56.12,localhost,127.0.0.1</value>
+        <description>Restricts hive proxy authorization to known cluster nodes.</description>
     </property>
     <property>
         <name>hadoop.proxyuser.hive.groups</name>
-        <value>*</value>
+        <value>hadoop,huser,hive,sudo</value>
+        <description>Restricts hive proxy authorization to cluster service groups.</description>
     </property>
 </configuration>

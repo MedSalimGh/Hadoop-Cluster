@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+# Ensure execution as huser
+if [ "$(id -un)" != "huser" ]; then
+    exec su - huser -c "bash /vagrant/scripts/start-cluster.sh"
+fi
+
 # Source environment
 export HADOOP_HOME=/home/huser/hadoop-3.3.6
 export HIVE_HOME=/opt/hive

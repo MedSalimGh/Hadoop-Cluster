@@ -17,14 +17,19 @@ if [ -f /etc/mysql/mariadb.conf.d/50-server.cnf ]; then
     systemctl restart mariadb
 fi
 
-# Configure Hive Metastore Database and User in MariaDB
+# Configure Hive Metastore Database and User in MariaDB (Restricted to cluster subnet)
 echo "Configuring MySQL/MariaDB database and user 'hive'..."
 mysql -u root << 'EOF'
 CREATE DATABASE IF NOT EXISTS metastore_db CHARACTER SET utf8 COLLATE utf8_general_ci;
 CREATE USER IF NOT EXISTS 'hive'@'localhost' IDENTIFIED BY 'hive';
-CREATE USER IF NOT EXISTS 'hive'@'%' IDENTIFIED BY 'hive';
+CREATE USER IF NOT EXISTS 'hive'@'127.0.0.1' IDENTIFIED BY 'hive';
+CREATE USER IF NOT EXISTS 'hive'@'master' IDENTIFIED BY 'hive';
+CREATE USER IF NOT EXISTS 'hive'@'192.168.56.%' IDENTIFIED BY 'hive';
 GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'localhost';
-GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'%';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'master';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'192.168.56.%';
+DROP USER IF EXISTS 'hive'@'%';
 FLUSH PRIVILEGES;
 EOF
 

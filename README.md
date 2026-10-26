@@ -45,10 +45,15 @@ The cluster consists of three Debian 12 (Bookworm) 64-bit virtual machines inter
 
 ### High Availability (HA) Multi-Tier Design
 
+> [!NOTE]
+> **High Availability Architectural Scope:**
+> This repository implements **Hive Service High Availability (Active-Active HiveServer2 query routing via Apache ZooKeeper and dual Metastore service failover)**. The underlying storage (HDFS NameNode) and compute orchestration (YARN ResourceManager) run as single-master services on `master`, which is the industry-standard topology for development, CI/CD testing, and educational IaC labs to maximize host hardware efficiency.
+
 1. **Coordination Tier (ZooKeeper 3.8.0):** Runs on `master:2181`. HiveServer2 instances register ephemeral sequential znodes under namespace `/hiveserver2`. Clients query ZooKeeper to dynamically discover available live HS2 instances with automatic random load balancing and transparent failover.
 2. **Compute & Query Serving Tier (Active-Active HiveServer2):** Dual HS2 instances run simultaneously on `master:10000` and `worker1:10000`. If one instance crashes or is killed, its ephemeral znode expires; ZooKeeper immediately directs incoming JDBC/ODBC queries to the surviving node with zero service downtime.
 3. **Metadata Catalog Tier (Dual Hive Metastore Services):** Dual HMS instances run on `master:9083` and `worker1:9083`. Clients and execution engines connect via fallback URI list `thrift://master:9083,thrift://worker1:9083`.
-4. **Relational Database Tier (MariaDB 10.11 Metastore):** Centralized on `master:3306` with remote network binding (`bind-address = 0.0.0.0`), allowing both HMS instances to synchronize metadata safely and concurrently.
+4. **Relational Database Tier (MariaDB 10.11 Metastore):** Centralized on `master:3306` with remote network binding restricted to the cluster subnet (`hive@192.168.56.%`), allowing both HMS instances to synchronize metadata safely and concurrently.
+
 
 ### Node Specifications & Resource Allocation
 
@@ -149,7 +154,7 @@ vagrant ssh master -c "bash /vagrant/scripts/test-ha-failover.sh"
 
 ### 5. Validate Cluster Health
 ```bash
-# Run 5-stage automated cluster verification suite
+# Run 6-stage automated cluster verification & assertion suite
 vagrant ssh master -c "bash /vagrant/scripts/verify-cluster.sh"
 # (or: make verify)
 ```
@@ -204,9 +209,19 @@ if [ "$CURRENT_HOST" = "master" ]; then
     cp /home/huser/.ssh/id_ed25519.pub /vagrant/keys/cluster_key.pub
 else
     echo "Configuring worker node authorized keys..."
-    if [ -f /vagrant/keys/cluster_key.pub ]; then
-        cat /vagrant/keys/cluster_key.pub >> /home/huser/.ssh/authorized_keys
+    echo "Waiting for master public key (/vagrant/keys/cluster_key.pub)..."
+    for i in {1..30}; do
+        if [ -f /vagrant/keys/cluster_key.pub ]; then
+            break
+        fi
+        sleep 1
+    done
+
+    if [ ! -f /vagrant/keys/cluster_key.pub ]; then
+        echo "ERROR: Master public key /vagrant/keys/cluster_key.pub not found after 30s!" >&2
+        exit 1
     fi
+    cat /vagrant/keys/cluster_key.pub >> /home/huser/.ssh/authorized_keys
 fi
 
 # Ensure unique entries in authorized_keys
@@ -289,10 +304,14 @@ sudo systemctl restart mariadb
 #### 2. Metastore Database & User Grants
 ```sql
 CREATE DATABASE IF NOT EXISTS metastore_db;
-CREATE USER IF NOT EXISTS 'hive'@'%' IDENTIFIED BY 'hive';
 CREATE USER IF NOT EXISTS 'hive'@'localhost' IDENTIFIED BY 'hive';
-GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'%';
+CREATE USER IF NOT EXISTS 'hive'@'127.0.0.1' IDENTIFIED BY 'hive';
+CREATE USER IF NOT EXISTS 'hive'@'master' IDENTIFIED BY 'hive';
+CREATE USER IF NOT EXISTS 'hive'@'192.168.56.%' IDENTIFIED BY 'hive';
 GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'localhost';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'master';
+GRANT ALL PRIVILEGES ON metastore_db.* TO 'hive'@'192.168.56.%';
 FLUSH PRIVILEGES;
 ```
 
@@ -491,10 +510,11 @@ bash /vagrant/scripts/test-ha-failover.sh
 | Property | Value | Rationale |
 | :--- | :--- | :--- |
 | `fs.defaultFS` | `hdfs://master:9000` | Points HDFS root to the active NameNode IPC daemon. |
-| `hadoop.proxyuser.huser.hosts` | `*` | Authorizes `huser` to proxy requests from any host. |
-| `hadoop.proxyuser.huser.groups` | `*` | Allows `huser` to submit jobs on behalf of any user group. |
-| `hadoop.proxyuser.hive.hosts` | `*` | Authorizes HiveServer2 daemon delegation to YARN. |
-| `hadoop.proxyuser.hive.groups` | `*` | Authorizes HiveServer2 daemon delegation across all groups. |
+| `hadoop.proxyuser.huser.hosts` | `master,worker1,worker2,192.168.56.10-12,localhost` | Whitelists cluster nodes and local host interfaces against external impersonation. |
+| `hadoop.proxyuser.huser.groups` | `hadoop,huser,hive,sudo` | Restricts delegation strictly to authorized cluster groups. |
+| `hadoop.proxyuser.hive.hosts` | `master,worker1,worker2,192.168.56.10-12,localhost` | Authorizes HiveServer2 daemon delegation strictly from cluster nodes. |
+| `hadoop.proxyuser.hive.groups` | `hadoop,huser,hive,sudo` | Restricts HiveServer2 daemon delegation strictly to authorized cluster groups. |
+
 
 ### 2. `config/hdfs-site.xml`
 | Property | Value | Rationale |
@@ -643,7 +663,8 @@ All scripts are stored in [`scripts/`](scripts/) and mounted at `/vagrant/script
 | **`test-ha-failover.sh`** | [`scripts/test-ha-failover.sh`](scripts/test-ha-failover.sh) | `bash /vagrant/scripts/test-ha-failover.sh` | Executes 6-stage crash simulation, ZooKeeper discovery failover validation, and self-healing verification. |
 | **`start-hive.sh`** | [`scripts/start-hive.sh`](scripts/start-hive.sh) | `bash /vagrant/scripts/start-hive.sh` | Launches Hive Metastore & HiveServer2 with automated port polling (`9083`, `10000`). |
 | **`stop-hive.sh`** | [`scripts/stop-hive.sh`](scripts/stop-hive.sh) | `bash /vagrant/scripts/stop-hive.sh` | Gracefully terminates all running Hive and Metastore processes. |
-| **`verify-cluster.sh`** | [`scripts/verify-cluster.sh`](scripts/verify-cluster.sh) | `bash /vagrant/scripts/verify-cluster.sh` | Automated 5-stage health check (JPS, HDFS live nodes, YARN active nodes, Pi MapReduce benchmark, Beeline query). |
+| **`verify-cluster.sh`** | [`scripts/verify-cluster.sh`](scripts/verify-cluster.sh) | `bash /vagrant/scripts/verify-cluster.sh` | Automated 6-stage health & assertion suite (multi-node JPS, HDFS/YARN node assertions, MapReduce Pi, Hive CLI & Beeline JDBC). |
+
 | **`test-hive.sql`** | [`scripts/test-hive.sql`](scripts/test-hive.sql) | `beeline -u ... -f /vagrant/scripts/test-hive.sql` | Verification SQL script for schema creation, table creation, insertion, and querying. |
 | **`setup-common.sh`** | [`scripts/setup-common.sh`](scripts/setup-common.sh) | *Provisioning* | Installs base packages, OpenJDK 17, `/etc/hosts`, and generates dynamic `ed25519` SSH keys. |
 | **`setup-hadoop.sh`** | [`scripts/setup-hadoop.sh`](scripts/setup-hadoop.sh) | *Provisioning* | Downloads and unpacks Hadoop 3.3.6 binaries and configures storage directories. |

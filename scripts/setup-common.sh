@@ -53,9 +53,19 @@ if [ "$CURRENT_HOST" = "master" ]; then
     cp /home/huser/.ssh/id_ed25519.pub /vagrant/keys/cluster_key.pub
 else
     echo "Configuring worker node authorized keys..."
-    if [ -f /vagrant/keys/cluster_key.pub ]; then
-        cat /vagrant/keys/cluster_key.pub >> /home/huser/.ssh/authorized_keys
+    echo "Waiting for master public key (/vagrant/keys/cluster_key.pub)..."
+    for _ in {1..30}; do
+        if [ -f /vagrant/keys/cluster_key.pub ]; then
+            break
+        fi
+        sleep 1
+    done
+
+    if [ ! -f /vagrant/keys/cluster_key.pub ]; then
+        echo "ERROR: Master public key /vagrant/keys/cluster_key.pub not found after 30s!" >&2
+        exit 1
     fi
+    cat /vagrant/keys/cluster_key.pub >> /home/huser/.ssh/authorized_keys
 fi
 
 # Ensure unique entries in authorized_keys

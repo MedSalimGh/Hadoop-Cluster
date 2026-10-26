@@ -9,9 +9,11 @@ Because this environment is engineered for development and benchmarking, several
 | Setting | Lab Default | Production Standard | Technical Rationale for Lab |
 | :--- | :--- | :--- | :--- |
 | **HDFS Permissions** | `dfs.permissions.enabled=false` | `true` (with Kerberos & POSIX ACLs) | Eliminates user identity collisions between host and containerized YARN subshells. |
-| **Hadoop Proxyuser** | `hadoop.proxyuser.*.hosts = *` | Explicit FQDN / IP whitelist | Allows HiveServer2 and Beeline to delegate queries on behalf of any test user without host binding restrictions. |
-| **Metastore Database Password** | Default development password (`hive`) | Injected via HashiCorp Vault / AWS Secrets Manager | Simplifies reproducible automated deployments across test environments. |
+| **Hadoop Proxyuser** | Restricted to cluster nodes & IPs (`master,worker1,worker2,192.168.56.10-12,localhost`) | Strict FQDN / IP whitelist | Hardened against unauthorized external host impersonation while allowing HiveServer2 delegation. |
+| **Metastore Database** | Restricted to `hive@192.168.56.%` & local interfaces | Individual application user + TLS + Vault | Restricts database access strictly to the private cluster subnet rather than wildcard `%`. |
 | **HDFS Warehouse Permissions** | `chmod 777 /user/hive/warehouse` | `chmod 770` with group `hadoop` | Allows MapReduce application containers spawned by varied test users to write scratch output files. |
+| **Lab Account (`huser`)** | Default dev credentials (`huser`) with sudo | Enterprise LDAP/SSO, locked local password | Enables non-interactive provisioning across headless Vagrant nodes. Production environments lock password accounts (`passwd -l`). |
+
 
 > [!WARNING]
 > Do not expose these virtual machines to public, routable networks without implementing the production hardening steps detailed in Section 3.

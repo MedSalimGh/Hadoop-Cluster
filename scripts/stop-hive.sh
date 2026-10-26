@@ -12,7 +12,7 @@ stop_service() {
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             echo "Stopping $name (PID $pid)..."
             kill "$pid" 2>/dev/null || true
-            for i in {1..10}; do
+            for _ in {1..10}; do
                 kill -0 "$pid" 2>/dev/null || break
                 sleep 0.5
             done

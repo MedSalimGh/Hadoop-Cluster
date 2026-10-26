@@ -13,7 +13,7 @@ help:
 	@echo "  make stop       - Gracefully stop all cluster services"
 	@echo "  make ha-setup   - Deploy ZooKeeper and launch Hive High Availability (HA)"
 	@echo "  make ha-test    - Execute automated 6-stage Hive HA failover validation"
-	@echo "  make verify     - Run automated 5-stage cluster verification suite"
+	@echo "  make verify     - Run automated 6-stage cluster verification & assertion suite"
 	@echo "  make destroy    - Tear down and destroy all virtual machines"
 	@echo "  make clean      - Clean local Vagrant runtime state and temporary files"
 

@@ -87,18 +87,16 @@ echo "=== Step 3: Starting High Availability Daemons ==========="
 echo "=========================================================="
 
 echo "[1/4] Launching Primary Hive Metastore on master (port 9083)..."
-su - huser -c "nohup hive --service metastore > /tmp/hive-metastore-master.log 2>&1 &"
-su - huser -c "echo \$! > /tmp/hive-metastore.pid"
+su - huser -c 'nohup hive --service metastore > /tmp/hive-metastore-master.log 2>&1 & echo $! > /tmp/hive-metastore.pid'
 
 echo "[2/4] Launching Secondary Hive Metastore on worker1 (port 9083)..."
-sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "nohup hive --service metastore > /tmp/hive-metastore-worker1.log 2>&1 & echo \$! > /tmp/hive-metastore.pid"
+sudo -u huser ssh -o StrictHostKeyChecking=no worker1 'nohup hive --service metastore > /tmp/hive-metastore-worker1.log 2>&1 & echo $! > /tmp/hive-metastore.pid'
 
 echo "[3/4] Launching Primary HiveServer2 on master (port 10000)..."
-su - huser -c "nohup hive --service hiveserver2 > /tmp/hive-hs2-master.log 2>&1 &"
-su - huser -c "echo \$! > /tmp/hiveserver2.pid"
+su - huser -c 'nohup hive --service hiveserver2 > /tmp/hive-hs2-master.log 2>&1 & echo $! > /tmp/hiveserver2.pid'
 
 echo "[4/4] Launching Secondary HiveServer2 on worker1 (port 10000)..."
-sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "nohup hive --service hiveserver2 > /tmp/hive-hs2-worker1.log 2>&1 & echo \$! > /tmp/hiveserver2.pid"
+sudo -u huser ssh -o StrictHostKeyChecking=no worker1 'nohup hive --service hiveserver2 > /tmp/hive-hs2-worker1.log 2>&1 & echo $! > /tmp/hiveserver2.pid'
 
 echo "=========================================================="
 echo "=== Step 4: Polling Service Readiness & ZooKeeper ========"

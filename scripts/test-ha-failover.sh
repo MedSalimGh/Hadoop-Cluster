@@ -88,7 +88,7 @@ echo "Restarting HiveServer2 on master node..."
 su - huser -c "nohup /opt/hive/bin/hive --service hiveserver2 > /tmp/hive-hs2-master.log 2>&1 &"
 
 echo "Waiting for master HS2 to bind and re-register in ZooKeeper (15-20s)..."
-for i in {1..20}; do
+for _ in {1..20}; do
     if ss -tulpn | grep -q 10000; then
         echo "Master HiveServer2 is back online on port 10000!"
         break

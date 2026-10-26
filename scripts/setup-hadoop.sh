@@ -70,9 +70,12 @@ JAVA_DETECTED=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
 sed -i "/export JAVA_HOME=/c\export JAVA_HOME=${JAVA_DETECTED}" "$TARGET_DIR/etc/hadoop/hadoop-env.sh" || \
 echo "export JAVA_HOME=${JAVA_DETECTED}" >> "$TARGET_DIR/etc/hadoop/hadoop-env.sh"
 
-echo "export HADOOP_HOME=/home/huser/hadoop-${HADOOP_VERSION}" >> "$TARGET_DIR/etc/hadoop/hadoop-env.sh"
-echo "export HADOOP_CONF_DIR=\$HADOOP_HOME/etc/hadoop" >> "$TARGET_DIR/etc/hadoop/hadoop-env.sh"
-echo "export PDSH_RCMD_TYPE=ssh" >> "$TARGET_DIR/etc/hadoop/hadoop-env.sh"
+{
+    echo "export HADOOP_HOME=/home/huser/hadoop-${HADOOP_VERSION}"
+    echo "export HADOOP_CONF_DIR=\$HADOOP_HOME/etc/hadoop"
+    echo "export PDSH_RCMD_TYPE=ssh"
+} >> "$TARGET_DIR/etc/hadoop/hadoop-env.sh"
+
 
 echo "=== [4/4] Creating HDFS and TMP Storage Directories ==="
 mkdir -p /home/huser/hadoopdata/tmp

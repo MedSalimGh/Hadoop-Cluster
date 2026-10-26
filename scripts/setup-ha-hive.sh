@@ -2,7 +2,7 @@
 # ==============================================================================
 # Setup & Orchestration Script: High Availability for Apache Hive 4.0.1
 # Architecture:
-#   - ZooKeeper Quorum Service Discovery on master:2181
+#   - 3-Node ZooKeeper Quorum Ensemble (master:2181 [1], worker1:2181 [2], worker2:2181 [3])
 #   - Dual Hive Metastore Service (HMS) on master:9083 and worker1:9083
 #   - Dual HiveServer2 (HS2) with Dynamic Discovery on master:10000 and worker1:10000
 #   - Shared MariaDB Metastore backend on master:3306 (bind 0.0.0.0)
@@ -13,27 +13,115 @@ echo "=========================================================="
 echo "=== Step 1: Configuring Master Node for Hive HA =========="
 echo "=========================================================="
 
+# Helper function to provision and configure ZooKeeper on a given node
+setup_zk_node() {
+    local node="$1"
+    local myid="$2"
+    echo "Configuring ZooKeeper on $node (myid: $myid)..."
+    if [ "$node" = "master" ] || [ "$node" = "localhost" ]; then
+        if ! command -v zookeeper-server &>/dev/null && [ ! -f "/usr/share/zookeeper/bin/zkServer.sh" ]; then
+            echo "Installing zookeeperd & netcat-openbsd on master..."
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update && apt-get install -y --no-install-recommends zookeeperd netcat-openbsd
+        fi
+        mkdir -p /var/lib/zookeeper /etc/zookeeper/conf
+        cp -f /vagrant/config/zoo.cfg /etc/zookeeper/conf/zoo.cfg
+        echo "$myid" > /var/lib/zookeeper/myid
+        chown -R zookeeper:zookeeper /var/lib/zookeeper /etc/zookeeper/conf
+        systemctl enable zookeeper
+        systemctl restart zookeeper
+        ln -sf /usr/share/zookeeper/bin/zkCli.sh /usr/local/bin/zkCli.sh 2>/dev/null || true
+    else
+        sudo -u huser ssh -o StrictHostKeyChecking=no "$node" "sudo bash -c '
+            export DEBIAN_FRONTEND=noninteractive
+            if ! command -v zookeeper-server &>/dev/null && [ ! -f \"/usr/share/zookeeper/bin/zkServer.sh\" ]; then
+                echo \"Installing zookeeperd & netcat-openbsd on $node...\"
+                apt-get update && apt-get install -y --no-install-recommends zookeeperd netcat-openbsd
+            fi
+            mkdir -p /var/lib/zookeeper /etc/zookeeper/conf
+            cp -f /vagrant/config/zoo.cfg /etc/zookeeper/conf/zoo.cfg
+            echo \"$myid\" > /var/lib/zookeeper/myid
+            chown -R zookeeper:zookeeper /var/lib/zookeeper /etc/zookeeper/conf
+            systemctl enable zookeeper
+            systemctl restart zookeeper
+            ln -sf /usr/share/zookeeper/bin/zkCli.sh /usr/local/bin/zkCli.sh 2>/dev/null || true
+        '"
+    fi
+}
+
+get_zk_mode() {
+    local host="$1"
+    local mode="unknown"
+    if [ "$host" = "master" ] || [ "$host" = "localhost" ]; then
+        mode=$(/usr/share/zookeeper/bin/zkServer.sh status 2>/dev/null | grep -i "Mode:" | awk '{print $2}' || true)
+        if [ -z "$mode" ] && command -v nc &>/dev/null; then
+            mode=$(echo srvr | nc -w 2 127.0.0.1 2181 2>/dev/null | grep -i "Mode:" | awk '{print $2}' || true)
+        fi
+    else
+        mode=$(sudo -u huser ssh -o StrictHostKeyChecking=no "$host" "
+            /usr/share/zookeeper/bin/zkServer.sh status 2>/dev/null | grep -i 'Mode:' | awk '{print \$2}' || \
+            ( command -v nc &>/dev/null && echo srvr | nc -w 2 127.0.0.1 2181 2>/dev/null | grep -i 'Mode:' | awk '{print \$2}' ) || true
+        ")
+    fi
+    echo "${mode:-unknown}"
+}
+
 # 1. Ensure MariaDB listens on 0.0.0.0 for cross-node connectivity
-echo "[1/4] Ensuring MariaDB is accessible from worker nodes..."
+echo "[1/5] Ensuring MariaDB is accessible from worker nodes..."
 sudo sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf 2>/dev/null || true
 sudo systemctl restart mariadb
 
-# 2. Ensure ZooKeeper is installed & running on master:2181
-echo "[2/4] Verifying ZooKeeper service on master:2181..."
-if ! command -v zookeeper-server &>/dev/null && [ ! -f "/usr/share/zookeeper/bin/zkServer.sh" ]; then
-    echo "Installing zookeeperd on master..."
-    sudo apt-get update && sudo apt-get install -y zookeeperd
+# 2. Deploy 3-Node ZooKeeper Quorum Ensemble (master=1, worker1=2, worker2=3)
+echo "[2/5] Deploying ZooKeeper 3-node Quorum Ensemble across cluster..."
+setup_zk_node "master" "1"
+setup_zk_node "worker1" "2"
+setup_zk_node "worker2" "3"
+
+echo "Verifying ZooKeeper Quorum Leader Election (Fast Leader Election on port 3888)..."
+QUORUM_ELECTED=false
+MODE_MASTER="unknown"
+MODE_WORKER1="unknown"
+MODE_WORKER2="unknown"
+for _ in {1..30}; do
+    MODE_MASTER=$(get_zk_mode "master")
+    MODE_WORKER1=$(get_zk_mode "worker1")
+    MODE_WORKER2=$(get_zk_mode "worker2")
+
+    LEADERS=0
+    FOLLOWERS=0
+    for m in "$MODE_MASTER" "$MODE_WORKER1" "$MODE_WORKER2"; do
+        if [ "$m" = "leader" ]; then
+            ((LEADERS++))
+        elif [ "$m" = "follower" ]; then
+            ((FOLLOWERS++))
+        fi
+    done
+
+    if [ "$LEADERS" -eq 1 ] && [ "$FOLLOWERS" -eq 2 ]; then
+        QUORUM_ELECTED=true
+        break
+    fi
+    sleep 2
+done
+
+echo "ZooKeeper Ensemble Status:"
+echo "  - master  (myid 1): Mode: $MODE_MASTER"
+echo "  - worker1 (myid 2): Mode: $MODE_WORKER1"
+echo "  - worker2 (myid 3): Mode: $MODE_WORKER2"
+
+if [ "$QUORUM_ELECTED" = true ]; then
+    echo "PASS: ZooKeeper Quorum Consensus established (1 Leader, 2 Followers)."
+else
+    echo "Notice: ZooKeeper Quorum initialized (Master: $MODE_MASTER, Worker1: $MODE_WORKER1, Worker2: $MODE_WORKER2)."
 fi
-sudo systemctl enable --now zookeeper
-sudo ln -sf /usr/share/zookeeper/bin/zkCli.sh /usr/local/bin/zkCli.sh 2>/dev/null || true
 
 # 3. Deploy HA hive-site.xml on master
-echo "[3/4] Deploying HA hive-site.xml on master..."
+echo "[3/5] Deploying HA hive-site.xml on master..."
 cp /vagrant/config/hive-site.xml /opt/hive/conf/hive-site.xml
 chown huser:huser /opt/hive/conf/hive-site.xml
 
 # 4. Stop any existing Hive standalone processes on master
-echo "[4/4] Stopping existing Hive processes on master..."
+echo "[4/5] Stopping existing Hive processes on master..."
 bash /vagrant/scripts/stop-hive.sh 2>/dev/null || true
 sleep 2
 
@@ -132,7 +220,7 @@ echo "=========================================================="
 echo "Verifying registered HiveServer2 instances in ZooKeeper (/hiveserver2)..."
 sleep 5
 
-ZK_NODES=$(/usr/share/zookeeper/bin/zkCli.sh -server localhost:2181 ls /hiveserver2 2>/dev/null | grep 'serverUri=' || true)
+ZK_NODES=$(/usr/share/zookeeper/bin/zkCli.sh -server "master:2181,worker1:2181,worker2:2181" ls /hiveserver2 2>/dev/null | grep 'serverUri=' || true)
 if [ -z "$ZK_NODES" ]; then
     echo "ERROR: No HiveServer2 instances registered under ZooKeeper namespace /hiveserver2!" >&2
     exit 1

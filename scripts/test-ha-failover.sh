@@ -10,7 +10,7 @@
 # ==============================================================================
 set -euo pipefail
 
-ZK_HOST="master:2181"
+ZK_HOST="master:2181,worker1:2181,worker2:2181"
 ZK_NAMESPACE="hiveserver2"
 JDBC_ZK_URL="jdbc:hive2://${ZK_HOST}/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=${ZK_NAMESPACE}"
 
@@ -25,6 +25,25 @@ echo "--- Worker1 Node Java Daemons (JPS): ---"
 sudo -u huser ssh -o StrictHostKeyChecking=no worker1 "sudo -u huser -i jps"
 
 echo ""
+echo "--- ZooKeeper 3-Node Quorum Status & Roles: ---"
+for node in master worker1 worker2; do
+    echo "[$node]:"
+    if [ "$node" = "master" ]; then
+        if [ -f /var/lib/zookeeper/myid ]; then
+            echo "  myid: $(cat /var/lib/zookeeper/myid)"
+        fi
+        /usr/share/zookeeper/bin/zkServer.sh status 2>/dev/null | grep -E "Mode|Client" || true
+    else
+        sudo -u huser ssh -o StrictHostKeyChecking=no "$node" "
+            if [ -f /var/lib/zookeeper/myid ]; then
+                echo \"  myid: \$(cat /var/lib/zookeeper/myid)\"
+            fi
+            /usr/share/zookeeper/bin/zkServer.sh status 2>/dev/null | grep -E 'Mode|Client' || true
+        "
+    fi
+done
+
+echo ""
 echo "--- Listening Ports on Master (ZooKeeper 2181, HMS 9083, HS2 10000): ---"
 ss -tulpn | grep -E "2181|9083|10000"
 
@@ -37,7 +56,7 @@ echo "=========================================================="
 echo "=== STAGE 2: Querying ZooKeeper Service Registry ========="
 echo "=========================================================="
 echo "Active HiveServer2 ephemeral znodes in /hiveserver2:"
-/usr/share/zookeeper/bin/zkCli.sh -server localhost:2181 ls /${ZK_NAMESPACE} 2>/dev/null | tail -n 5
+/usr/share/zookeeper/bin/zkCli.sh -server "${ZK_HOST}" ls /${ZK_NAMESPACE} 2>/dev/null | tail -n 5
 
 echo ""
 echo "=========================================================="
@@ -67,7 +86,7 @@ fi
 
 echo ""
 echo "Checking ZooKeeper ephemeral znodes after primary failure:"
-/usr/share/zookeeper/bin/zkCli.sh -server localhost:2181 ls /${ZK_NAMESPACE} 2>/dev/null | tail -n 5
+/usr/share/zookeeper/bin/zkCli.sh -server "${ZK_HOST}" ls /${ZK_NAMESPACE} 2>/dev/null | tail -n 5
 
 echo ""
 echo "=========================================================="
@@ -98,7 +117,7 @@ done
 sleep 5
 
 echo "ZooKeeper service registry after self-healing recovery:"
-/usr/share/zookeeper/bin/zkCli.sh -server localhost:2181 ls /${ZK_NAMESPACE} 2>/dev/null | tail -n 5
+/usr/share/zookeeper/bin/zkCli.sh -server "${ZK_HOST}" ls /${ZK_NAMESPACE} 2>/dev/null | tail -n 5
 
 echo ""
 echo "=========================================================="

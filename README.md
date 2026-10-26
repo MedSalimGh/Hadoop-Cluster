@@ -49,7 +49,7 @@ The cluster consists of three Debian 12 (Bookworm) 64-bit virtual machines inter
 > **High Availability Architectural Scope:**
 > This repository implements **Hive Service High Availability (Active-Active HiveServer2 query routing via Apache ZooKeeper and dual Metastore service failover)**. The underlying storage (HDFS NameNode) and compute orchestration (YARN ResourceManager) run as single-master services on `master`, which is the industry-standard topology for development, CI/CD testing, and educational IaC labs to maximize host hardware efficiency.
 
-1. **Coordination Tier (ZooKeeper 3.8.0):** Runs on `master:2181`. HiveServer2 instances register ephemeral sequential znodes under namespace `/hiveserver2`. Clients query ZooKeeper to dynamically discover available live HS2 instances with automatic random load balancing and transparent failover.
+1. **Coordination Tier (ZooKeeper 3.8.0 3-Node Quorum Ensemble):** Runs across `master:2181` (myid 1), `worker1:2181` (myid 2), and `worker2:2181` (myid 3) with Fast Leader Election ($Q = \lfloor 3/2 \rfloor + 1 = 2$). HiveServer2 instances register ephemeral sequential znodes under namespace `/hiveserver2`. Clients connect to the full quorum ensemble (`master:2181,worker1:2181,worker2:2181`) to dynamically discover available live HS2 instances with automatic random load balancing and transparent failover.
 2. **Compute & Query Serving Tier (Active-Active HiveServer2):** Dual HS2 instances run simultaneously on `master:10000` and `worker1:10000`. If one instance crashes or is killed, its ephemeral znode expires; ZooKeeper immediately directs incoming JDBC/ODBC queries to the surviving node with zero service downtime.
 3. **Metadata Catalog Tier (Dual Hive Metastore Services):** Dual HMS instances run on `master:9083` and `worker1:9083`. Clients and execution engines connect via fallback URI list `thrift://master:9083,thrift://worker1:9083`.
 4. **Relational Database Tier (MariaDB 10.11 Metastore):** Centralized on `master:3306` with remote network binding restricted to the cluster subnet (`hive@192.168.56.%`), allowing both HMS instances to synchronize metadata safely and concurrently.
@@ -61,7 +61,7 @@ The cluster consists of three Debian 12 (Bookworm) 64-bit virtual machines inter
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Master** | `master` | `192.168.56.10` | NameNode, SecondaryNameNode, ResourceManager, MariaDB 10.11, ZooKeeper 3.8.0, Hive Metastore 1, HiveServer2 1 | 2 | 2048 MB | Root (20GB) + Shared `/vagrant` |
 | **Worker 1** | `worker1` | `192.168.56.11` | DataNode 1, NodeManager 1, Hive Metastore 2 (HA), HiveServer2 2 (HA) | 1 | 1280 MB | Root (20GB) + Shared `/vagrant` |
-| **Worker 2** | `worker2` | `192.168.56.12` | DataNode 2, NodeManager 2 | 1 | 1280 MB | Root (20GB) + Shared `/vagrant` |
+| **Worker 2** | `worker2` | `192.168.56.12` | DataNode 2, NodeManager 2, ZooKeeper 3.8.0 (HA Quorum) | 1 | 1280 MB | Root (20GB) + Shared `/vagrant` |
 
 ---
 
@@ -76,6 +76,7 @@ Hadoop-Cluster/
 │   ├── fix-java17-yarn.sh           # Helper utility for YARN container Java 17 reflection flags
 │   ├── hdfs-site.xml                # Block replication (2), NameNode/DataNode local paths
 │   ├── hive-site.xml                # Metastore JDBC, ZooKeeper discovery & dual HMS URIs
+│   ├── zoo.cfg                      # 3-Node ZooKeeper quorum ensemble configuration
 │   ├── mapred-site.xml              # MapReduce framework, memory allocation & AM classpath
 │   ├── workers                      # DataNode & NodeManager worker node inventory
 │   └── yarn-site.xml                # ResourceManager, NodeManager & auxiliary shuffle services
@@ -367,12 +368,19 @@ schematool -initSchema -dbType mysql
 
 The High Availability deployment eliminates Single Points of Failure (SPOF) across the Hive stack.
 
-#### 1. ZooKeeper 3.8.0 Coordination Service
-Installed via `zookeeperd` on `master`, listening on port `2181`:
-```bash
-sudo apt-get install -y zookeeper zookeeperd
-sudo systemctl enable --now zookeeper
+#### 1. ZooKeeper 3.8.0 3-Node Quorum Ensemble
+Configured via `config/zoo.cfg` and deployed across all three cluster nodes with assigned IDs:
+- `master`: `/var/lib/zookeeper/myid` contains `1`
+- `worker1`: `/var/lib/zookeeper/myid` contains `2`
+- `worker2`: `/var/lib/zookeeper/myid` contains `3`
+
+```ini
+# /etc/zookeeper/conf/zoo.cfg
+server.1=master:2888:3888
+server.2=worker1:2888:3888
+server.3=worker2:2888:3888
 ```
+Quorum consensus requires $\lfloor 3/2 \rfloor + 1 = 2$ nodes alive, guaranteeing automatic leader election and zero coordination downtime.
 
 #### 2. Dynamic Service Discovery in `hive-site.xml`
 The following properties enable dynamic discovery and dual-metastore failover:
@@ -386,7 +394,7 @@ The following properties enable dynamic discovery and dual-metastore failover:
 <!-- ZooKeeper Ensemble Address -->
 <property>
     <name>hive.zookeeper.quorum</name>
-    <value>master:2181</value>
+    <value>master:2181,worker1:2181,worker2:2181</value>
 </property>
 
 <!-- ZooKeeper Namespace for HiveServer2 Instances -->
@@ -471,7 +479,7 @@ ss -tulpn | grep -E "9083|10000"
 ### 1. Dynamic Discovery Mode via ZooKeeper (Production Recommended)
 Clients do not need to hardcode a specific node IP. Instead, they provide the ZooKeeper quorum and namespace. ZooKeeper automatically routes the connection to an active instance:
 ```bash
-beeline -u "jdbc:hive2://master:2181/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2" -n huser
+beeline -u "jdbc:hive2://master:2181,worker1:2181,worker2:2181/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2" -n huser
 ```
 
 ### 2. Direct Node Connection (Inspection Mode)
@@ -546,7 +554,7 @@ bash /vagrant/scripts/test-ha-failover.sh
 | Property | Value | Rationale |
 | :--- | :--- | :--- |
 | `hive.server2.support.dynamic.service.discovery` | `true` | Enables ZooKeeper registration and dynamic client routing. |
-| `hive.zookeeper.quorum` | `master:2181` | ZooKeeper ensemble host and port. |
+| `hive.zookeeper.quorum` | `master:2181,worker1:2181,worker2:2181` | 3-Node ZooKeeper ensemble host and port quorum list. |
 | `hive.server2.zookeeper.namespace` | `hiveserver2` | ZooKeeper znode tree root for HS2 instances. |
 | `hive.metastore.uris` | `thrift://master:9083,thrift://worker1:9083` | Comma-delimited list for client-side Metastore failover. |
 | `javax.jdo.option.ConnectionDriverName` | `org.mariadb.jdbc.Driver` | MariaDB / MySQL Type 4 JDBC driver class. |

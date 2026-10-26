@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unified Cluster Lifecycle Scripts:** Added `scripts/start-cluster.sh` and `scripts/stop-cluster.sh` for one-command startup and shutdown.
 - **Port Readiness Validation & Non-Zero Exit Codes:** Hardened `start-hive.sh` with `wait_for_port()` and timeout-based failure handling.
 - **Makefile Automation:** Standard developer commands (`make up`, `make start`, `make stop`, `make ha-setup`, `make ha-test`, `make verify`).
+- **ZooKeeper 3-Node Quorum Ensemble:** Upgraded ZooKeeper coordination tier from standalone to a full 3-node quorum ensemble across `master` (myid 1), `worker1` (myid 2), and `worker2` (myid 3) with Fast Leader Election, port 2888/3888 synchronization, and `config/zoo.cfg`.
 - **Security & Governance Standards:** Added `SECURITY.md`, `.env.example`, `CONTRIBUTING.md`, connector license documentation, and `SHA256SUMS`.
 - **GitHub Actions CI:** Automated workflow validating shell scripts, XML configs, and Vagrantfile syntax.
 

@@ -70,8 +70,8 @@
 
     <property>
         <name>hive.zookeeper.quorum</name>
-        <value>master:2181</value>
-        <description>ZooKeeper ensemble quorum host:port</description>
+        <value>master:2181,worker1:2181,worker2:2181</value>
+        <description>ZooKeeper ensemble quorum host:port list</description>
     </property>
 
     <property>
